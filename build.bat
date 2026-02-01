@@ -1,13 +1,13 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-REM 默认目标
+REM Default target
 set TARGET=build
 
-REM 解析命令行参数
+REM Parse command line arguments
 if "%1" neq "" set TARGET=%1
 
-REM 构建
+REM Build
 if "%TARGET%"=="build" (
     echo Building MCP Client...
     if not exist bin mkdir bin
@@ -20,19 +20,19 @@ if "%TARGET%"=="build" (
     )
 )
 
-REM 运行
+REM Run
 if "%TARGET%"=="run" (
     echo Running MCP Client...
     go run cmd\client\main.go
 )
 
-REM 测试
+REM Test
 if "%TARGET%"=="test" (
     echo Running tests...
     go test -v ./...
 )
 
-REM 数据库迁移
+REM Database migrations
 if "%TARGET%"=="migrate-up" (
     echo Running database migrations...
     go run scripts\migrate\main.go -action=up
@@ -43,32 +43,32 @@ if "%TARGET%"=="migrate-down" (
     go run scripts\migrate\main.go -action=down
 )
 
-REM 依赖
+REM Dependencies
 if "%TARGET%"=="deps" (
     echo Downloading dependencies...
     go mod download
     go mod tidy
 )
 
-REM 代码检查
+REM Code check
 if "%TARGET%"=="lint" (
     echo Running code checks...
     go vet ./...
 )
 
-REM 格式化
+REM Format
 if "%TARGET%"=="fmt" (
     echo Formatting code...
     go fmt ./...
 )
 
-REM 清理
+REM Clean
 if "%TARGET%"=="clean" (
     echo Cleaning build files...
     if exist bin rmdir /s /q bin
 )
 
-REM 帮助
+REM Help
 if "%TARGET%"=="help" (
     echo Available targets:
     echo   build       - Build the application

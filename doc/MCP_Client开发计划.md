@@ -1227,7 +1227,249 @@ llm:
 
 ---
 
-### 阶段 4: 消息存储和上下文构建 (预计 2-3 天)
+### 阶段 4: 单元测试内容开发 (预计 2-3 天)
+
+**目标**：为已实现的功能编写全面的单元测试和集成测试
+
+**任务清单**：
+
+1. **测试框架搭建**
+   - 选择和配置测试框架 (testing + testify)
+   - 创建测试工具包 (`tests/testutil/`)
+   - 配置测试覆盖率工具
+   - 编写测试辅助函数
+
+2. **存储层单元测试** (`internal/store/`)
+   - `session_test.go`: 会话CRUD测试
+     - 测试创建会话
+     - 测试查询会话
+     - 测试软删除
+     - 测试并发操作
+   - `message_test.go`: 消息存储测试
+     - 测试保存消息
+     - 测试查询历史消息
+     - 测试分页查询
+     - 测试消息关联
+
+3. **LLM客户端单元测试** (`internal/client/llm/`)
+   - `openai_test.go`: OpenAI客户端测试
+     - 测试HTTP请求构建
+     - 测试响应解析
+     - 测试错误处理
+     - 使用httptest模拟服务器
+   - `retry_test.go`: 重试机制测试
+     - 测试指数退避算法
+     - 测试可重试错误识别
+     - 测试最大重试次数
+     - 测试上下文取消
+
+4. **MCP客户端单元测试** (`internal/client/mcp/`)
+   - `client_test.go`: MCP客户端测试
+     - 测试协议编解码
+     - 测试工具调用
+     - 测试状态查询
+     - 测试重试逻辑
+
+5. **Handler层测试** (`internal/api/handler/`)
+   - `session_test.go`: 会话处理器测试
+     - 测试创建会话API
+     - 测试查询会话API
+     - 测试删除会话API
+     - 测试参数验证
+   - `chat_test.go`: 聊天处理器测试
+     - 测试聊天消息处理
+     - 测试会话存在性检查
+     - 测试LLM客户端调用
+     - 使用Mock LLM客户端
+
+6. **集成测试** (`tests/integration/`)
+   - `session_integration_test.go`: 会话集成测试
+     - 端到端会话管理测试
+   - `chat_integration_test.go`: 聊天集成测试
+     - 完整聊天流程测试
+     - 使用Mock LLM Server
+
+7. **测试数据准备** (`mock/fixtures/`)
+   - 完善测试fixtures
+   - 添加边界条件测试数据
+   - 添加错误场景测试数据
+
+8. **测试脚本完善**
+   - 更新 `scripts/test.bat`
+   - 更新 `scripts/test.sh`
+   - 添加覆盖率报告生成
+   - 添加基准测试支持
+
+**可交付物**：
+- ✅ 完整的单元测试套件
+- ✅ 测试覆盖率 ≥ 80%
+- ✅ 集成测试通过
+- ✅ 测试文档和示例
+- ✅ CI就绪的测试套件
+
+**测试要求**：
+- [ ] 单元测试覆盖率 ≥ 80%
+- [ ] 所有测试通过 (`go test ./...`)
+- [ ] 无竞态条件 (`go test -race`)
+- [ ] 覆盖率报告生成
+- [ ] Benchmark测试完成
+
+**测试示例**：
+
+```go
+// internal/store/session_test.go
+func TestSessionStore_Create(t *testing.T) {
+    // 使用testify库
+    suite := new(testing.Suite)
+    db := setupTestDB()
+    defer teardownTestDB(db)
+
+    store := NewSessionStore(db)
+
+    session := &models.Session{
+        ID:         uuid.New(),
+        CampaignName: "测试战役",
+        CreatorID:  uuid.New(),
+        Status:     "active",
+    }
+
+    err := store.Create(context.Background(), session)
+    assert.NoError(t, err)
+    assert.NotEqual(t, uuid.Nil, session.ID)
+}
+
+func TestSessionStore_ConcurrentCreate(t *testing.T) {
+    db := setupTestDB()
+    defer teardownTestDB(db)
+    store := NewSessionStore(db)
+
+    var wg sync.WaitGroup
+    for i := 0; i < 100; i++ {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            session := &models.Session{
+                ID:         uuid.New(),
+                CampaignName: fmt.Sprintf("会话%d", i),
+                CreatorID:  uuid.New(),
+                Status:     "active",
+            }
+            store.Create(context.Background(), session)
+        }()
+    }
+    wg.Wait()
+
+    // 验证所有会话都已保存
+    sessions, _ := store.List(context.Background())
+    assert.Len(t, sessions, 100)
+}
+
+// internal/client/llm/openai_test.go
+func TestOpenAIClient_ChatCompletion(t *testing.T) {
+    // 使用httptest模拟服务器
+    server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // 验证请求
+        assert.Equal(t, "POST", r.Method)
+        assert.Equal(t, "/v1/chat/completions", r.URL.Path)
+        assert.Equal(t, "Bearer test-key", r.Header.Get("Authorization"))
+
+        // 返回模拟响应
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusOK)
+        w.Write([]byte(`{
+            "id": "test-001",
+            "object": "chat.completion",
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": "测试响应"
+                }
+            }]
+        }`))
+    }))
+    defer server.Close()
+
+    config := &llm.Config{
+        APIKey:  "test-key",
+        BaseURL: server.URL,
+        Model:   "gpt-4",
+    }
+    client := llm.NewOpenAIClient(config)
+
+    req := &llm.ChatCompletionRequest{
+        Model:    "gpt-4",
+        Messages: []llm.Message{{Role: "user", Content: "测试"}},
+    }
+
+    resp, err := client.ChatCompletion(context.Background(), req)
+    assert.NoError(t, err)
+    assert.Equal(t, "测试响应", resp.Choices[0].Message.Content)
+}
+
+// internal/api/handler/chat_test.go
+func TestChatHandler_ChatMessage_SessionNotFound(t *testing.T) {
+    // 创建Mock存储
+    mockStore := &MockStore{
+        sessions: make(map[uuid.UUID]*models.Session),
+    }
+
+    // 创建Mock LLM客户端
+    mockLLM := &MockLLMClient{
+        response: "测试响应",
+    }
+
+    handler := NewChatHandler(mockLLM, mockStore)
+
+    // 创建测试路由
+    router := gin.Default()
+    router.POST("/api/sessions/:id/chat", handler.ChatMessage)
+
+    // 创建不存在的会话ID
+    sessionID := uuid.New()
+
+    // 构造请求
+    body := `{"message": "测试消息"}`
+    req := httptest.NewRequest("POST", "/api/sessions/"+sessionID.String()+"/chat", strings.NewReader(body))
+    req.Header.Set("Content-Type", "application/json")
+
+    // 记录响应
+    w := httptest.NewRecorder()
+    router.ServeHTTP(w, req)
+
+    // 验证响应
+    assert.Equal(t, http.StatusNotFound, w.Code)
+    assert.Contains(t, w.Body.String(), "session not found")
+}
+```
+
+**测试命令**：
+```bash
+# 运行所有测试
+go test -v ./...
+
+# 运行测试并生成覆盖率
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out -o coverage.html
+
+# 运行测试并检测竞态条件
+go test -race ./...
+
+# 运行基准测试
+go test -bench=. -benchmem ./...
+
+# 运行特定包的测试
+go test -v ./internal/store/...
+go test -v ./internal/client/llm/...
+go test -v ./internal/api/handler/...
+
+# 使用build.bat运行测试
+.\build.bat test
+.\build.bat coverage
+```
+
+---
+
+### 阶段 5: 消息存储和上下文构建 (预计 2-3 天)
 
 **目标**：实现对话历史存储和上下文构建器
 
@@ -1264,7 +1506,7 @@ llm:
 
 ---
 
-### 阶段 5: 工具调用循环 (预计 3-4 天)
+### 阶段 6: 工具调用循环 (预计 3-4 天)
 
 **目标**：实现 LLM 工具调用和 MCP 执行的完整循环,使用 Mock 服务器进行完整测试
 
@@ -1404,7 +1646,7 @@ func TestChatIntegration_MultiToolCalling(t *testing.T) {
 
 ---
 
-### 阶段 6: WebSocket 事件推送 (预计 3-4 天)
+### 阶段 7: WebSocket 事件推送 (预计 3-4 天)
 
 **目标**：实现实时事件推送功能
 
@@ -1459,7 +1701,7 @@ ws.onmessage = (event) => {
 
 ---
 
-### 阶段 7: 高级功能和优化 (预计 2-3 天)
+### 阶段 8: 高级功能和优化 (预计 2-3 天)
 
 **目标**：完善系统功能,添加优化和增强
 
@@ -1505,7 +1747,7 @@ ws.onmessage = (event) => {
 
 ---
 
-### 阶段 8: 跨平台部署和文档 (预计 1-2 天)
+### 阶段 9: 跨平台部署和文档 (预计 1-2 天)
 
 **目标**：准备跨平台部署,完善文档
 
@@ -1865,13 +2107,14 @@ make help
 | 1  | 会话管理 | 2-3 | 3-4 |
 | 2  | MCP 客户端 | 3-4 | 6-8 |
 | 3  | LLM 客户端 | 2-3 | 8-11 |
-| 4  | 消息存储和上下文 | 2-3 | 10-14 |
-| 5  | 工具调用循环 | 3-4 | 13-18 |
-| 6  | WebSocket 事件推送 | 3-4 | 16-22 |
-| 7  | 高级功能和优化 | 2-3 | 18-25 |
-| 8  | 部署和文档 | 1-2 | 19-27 |
+| 4  | 单元测试内容开发 | 2-3 | 10-14 |
+| 5  | 消息存储和上下文 | 2-3 | 12-17 |
+| 6  | 工具调用循环 | 3-4 | 15-21 |
+| 7  | WebSocket 事件推送 | 3-4 | 18-25 |
+| 8  | 高级功能和优化 | 2-3 | 20-28 |
+| 9  | 部署和文档 | 1-2 | 21-30 |
 
-**总计**：19-27 天 (约 4-5 周)
+**总计**：21-30 天 (约 4-6 周)
 
 ---
 

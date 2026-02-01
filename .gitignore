@@ -8,14 +8,32 @@ bin/
 
 # Go build cache
 *.test
+*.test.exe
 *.out
 go.work
 
 # Dependency directories
 vendor/
 
+# Test reports
+test-reports/
+coverage.out
+coverage.html
+test_output.txt
+test_report.txt
+
+# Test temporary files
+coverage_generation.txt
+coverage_percent.txt
+nul
+
+# Backup files
+*.backup
+*.bak
+
 # Environment variables
 .env
+.env.local
 
 # IDE
 .vscode/
