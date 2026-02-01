@@ -1,6 +1,9 @@
 @echo off
 setlocal EnableDelayedExpansion
 
+REM Change to project root directory
+cd /d "%~dp0.."
+
 REM Default target
 set TARGET=build
 

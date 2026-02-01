@@ -821,7 +821,7 @@ echo "Tests completed!"
 
 ### PowerShell 测试脚本 (高级)
 
-**文件**: `scripts/test.ps1`
+**文件**: `scriptscripts/test.ps1`
 
 ```powershell
 #Requires -Version 5.1
@@ -1766,7 +1766,7 @@ ws.onmessage = (event) => {
    - 包含依赖服务 (PostgreSQL, Redis)
 
 3. **部署脚本**
-   - `scripts/build.bat`: Windows 构建脚本
+   - `scriptscripts/build.bat`: Windows 构建脚本
    - `scripts/build.sh`: Linux/macOS 构建脚本
    - `scripts/deploy.bat`: Windows 部署脚本
    - `scripts/deploy.sh`: Linux/macOS 部署脚本

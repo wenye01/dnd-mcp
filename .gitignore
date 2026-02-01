@@ -16,11 +16,14 @@ go.work
 vendor/
 
 # Test reports
-test-reports/
+tests/reports/
 coverage.out
 coverage.html
 test_output.txt
 test_report.txt
+
+# Mock servers (test infrastructure)
+mock/
 
 # Test temporary files
 coverage_generation.txt

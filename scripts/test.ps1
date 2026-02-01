@@ -1,6 +1,10 @@
 # MCP Client Testing Script
 # UTF-8 Encoding
 
+# Set working directory to project root
+$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+Set-Location (Split-Path -Parent $scriptPath)
+
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 Write-Host "========================================"
@@ -33,10 +37,10 @@ if ($LASTEXITCODE -ne 0) {
 # Clean old data
 Write-Host ""
 Write-Host "[2/5] Cleaning old test data..."
-if (!(Test-Path "test-reports")) {
-    New-Item -ItemType Directory -Path "test-reports" | Out-Null
+if (!(Test-Path "tests/reports")) {
+    New-Item -ItemType Directory -Path "tests/reports" | Out-Null
 }
-Remove-Item "test-reports\*" -Force -ErrorAction SilentlyContinue
+Remove-Item "tests/reports\*" -Force -ErrorAction SilentlyContinue
 
 # Drop existing test tables to ensure clean schema
 Write-Host "Dropping existing test tables..."
@@ -48,17 +52,17 @@ Write-Host ""
 Write-Host "[3/5] Running unit tests..."
 Write-Host ""
 Write-Host "Testing: internal/store"
-go test -v ./internal/store/... 2>&1 | Tee-Object -FilePath "test-reports\test_output.txt" -Append
+go test -v ./internal/store/... 2>&1 | Tee-Object -FilePath "tests/reports/test_output.txt" -Append
 $storeResult = $LASTEXITCODE
 
 Write-Host ""
 Write-Host "Testing: internal/client/llm"
-go test -v ./internal/client/llm/... 2>&1 | Tee-Object -FilePath "test-reports\test_output.txt" -Append
+go test -v ./internal/client/llm/... 2>&1 | Tee-Object -FilePath "tests/reports/test_output.txt" -Append
 $llmResult = $LASTEXITCODE
 
 Write-Host ""
 Write-Host "Testing: internal/api/handler"
-go test -v ./internal/api/handler/... 2>&1 | Tee-Object -FilePath "test-reports\test_output.txt" -Append
+go test -v ./internal/api/handler/... 2>&1 | Tee-Object -FilePath "tests/reports/test_output.txt" -Append
 $handlerResult = $LASTEXITCODE
 
 # Run integration tests
@@ -66,18 +70,18 @@ Write-Host ""
 Write-Host "[4/5] Running integration tests..."
 Write-Host ""
 Write-Host "Testing: tests/integration"
-go test -v ./tests/integration/... 2>&1 | Tee-Object -FilePath "test-reports\test_output.txt" -Append
+go test -v ./tests/integration/... 2>&1 | Tee-Object -FilePath "tests/reports/test_output.txt" -Append
 $integrationResult = $LASTEXITCODE
 
 # Generate coverage
 Write-Host ""
 Write-Host "[5/5] Generating coverage report..."
-go test -coverprofile=test-reports\coverage.out -covermode=atomic ./... 2>&1 | Out-Null
-if (Test-Path "test-reports\coverage.out") {
-    go tool cover -html=test-reports\coverage.out -o test-reports\coverage.html 2>&1 | Out-Null
+go test -coverprofile=tests/reports/coverage.out -covermode=atomic ./... 2>&1 | Out-Null
+if (Test-Path "tests/reports/coverage.out") {
+    go tool cover -html=tests/reports/coverage.out -o tests/reports/coverage.html 2>&1 | Out-Null
     Write-Host "[OK] Coverage report generated"
 
-    $coverage = go tool cover -func=test-reports\coverage.out | Select-String "total:"
+    $coverage = go tool cover -func=tests/reports/coverage.out | Select-String "total:"
     if ($coverage) {
         $parts = $coverage.Line.Split()
         Write-Host "Total Coverage: $($parts[$parts.Length - 2])"
