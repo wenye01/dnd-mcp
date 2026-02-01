@@ -12,6 +12,7 @@ import (
 
 	"github.com/dnd-mcp/client/internal/api"
 	"github.com/dnd-mcp/client/internal/api/handler"
+	"github.com/dnd-mcp/client/internal/client/llm"
 	"github.com/dnd-mcp/client/internal/client/websocket"
 	"github.com/dnd-mcp/client/internal/config"
 	"github.com/dnd-mcp/client/internal/store"
@@ -37,9 +38,35 @@ func main() {
 	hub := websocket.NewHub()
 	go hub.Run()
 
+	// 创建LLM客户端
+	llmConfig := &llm.Config{
+		Provider:    cfg.LLMProvider,
+		APIKey:      cfg.LLMAPIKey,
+		BaseURL:     cfg.LLMBaseURL,
+		Model:       cfg.LLMModel,
+		MaxRetries:  3,
+		Timeout:     30,
+		Temperature: 0.7,
+	}
+
+	// 如果使用mock且没有指定base_url,使用默认的mock服务器地址
+	if llmConfig.Provider == "mock" && llmConfig.BaseURL == "" {
+		llmConfig.BaseURL = "http://localhost:9001"
+	}
+
+	baseClient, err := llm.NewOpenAIClient(llmConfig)
+	if err != nil {
+		log.Fatalf("Failed to create LLM client: %v", err)
+	}
+
+	// 添加重试包装
+	var llmClient llm.Client = llm.NewRetryableClient(baseClient, llmConfig.MaxRetries)
+
+	log.Printf("LLM client initialized: provider=%s, model=%s", cfg.LLMProvider, cfg.LLMModel)
+
 	// 创建处理器
 	sessionHandler := handler.NewSessionHandler(dataStore)
-	chatHandler := handler.NewChatHandler()
+	chatHandler := handler.NewChatHandler(llmClient, dataStore)
 	wsHandler := handler.NewWebSocketHandler(hub)
 
 	// 设置路由
