@@ -1,4 +1,4 @@
-package llm
+package llm_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	llmclient "github.com/dnd-mcp/client/internal/client/llm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,29 +24,29 @@ func TestOpenAIClient_Chat_Success(t *testing.T) {
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
 		// 解析请求体
-		var req ChatCompletionRequest
+		var req llmclient.ChatCompletionRequest
 		err := json.NewDecoder(r.Body).Decode(&req)
 		require.NoError(t, err)
 		assert.Equal(t, "gpt-4", req.Model)
 		assert.Len(t, req.Messages, 2)
 
 		// 返回mock响应
-		response := ChatCompletionResponse{
+		response := llmclient.ChatCompletionResponse{
 			ID:      "chatcmpl-test-001",
 			Object:  "chat.completion",
 			Created: 1234567890,
 			Model:   "gpt-4",
-			Choices: []Choice{
+			Choices: []llmclient.Choice{
 				{
 					Index: 0,
-					Message: Message{
+					Message: llmclient.Message{
 						Role:    "assistant",
 						Content: "你好，冒险者！有什么可以帮你的吗？",
 					},
 					FinishReason: "stop",
 				},
 			},
-			Usage: Usage{
+			Usage: llmclient.Usage{
 				PromptTokens:     50,
 				CompletionTokens: 20,
 				TotalTokens:      70,
@@ -59,7 +60,7 @@ func TestOpenAIClient_Chat_Success(t *testing.T) {
 	defer server.Close()
 
 	// 创建客户端
-	config := &Config{
+	config := &llmclient.Config{
 		Provider:    "openai",
 		APIKey:      "test-api-key",
 		BaseURL:     server.URL,
@@ -69,15 +70,15 @@ func TestOpenAIClient_Chat_Success(t *testing.T) {
 		Temperature: 0.7,
 	}
 
-	client, err := NewOpenAIClient(config)
+	client, err := llmclient.NewOpenAIClient(config)
 	require.NoError(t, err)
 	require.NotNil(t, client)
 
 	// 发送请求
 	ctx := context.Background()
-	req := &ChatCompletionRequest{
+	req := &llmclient.ChatCompletionRequest{
 		Model: "gpt-4",
-		Messages: []Message{
+		Messages: []llmclient.Message{
 			{Role: "system", Content: "你是一个DND地下城主"},
 			{Role: "user", Content: "你好"},
 		},
@@ -96,22 +97,22 @@ func TestOpenAIClient_Chat_Success(t *testing.T) {
 func TestOpenAIClient_Chat_ToolCall(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// 返回工具调用响应
-		response := ChatCompletionResponse{
+		response := llmclient.ChatCompletionResponse{
 			ID:      "chatcmpl-test-002",
 			Object:  "chat.completion",
 			Created: 1234567890,
 			Model:   "gpt-4",
-			Choices: []Choice{
+			Choices: []llmclient.Choice{
 				{
 					Index: 0,
-					Message: Message{
+					Message: llmclient.Message{
 						Role:    "assistant",
 						Content: "",
-						ToolCalls: []ToolCall{
+						ToolCalls: []llmclient.ToolCall{
 							{
 								ID:   "call_001",
 								Type: "function",
-								Function: FunctionCall{
+								Function: llmclient.FunctionCall{
 									Name:      "resolve_attack",
 									Arguments: `{"attacker_id":"char-001","target_id":"goblin-001","attack_type":"melee"}`,
 								},
@@ -121,7 +122,7 @@ func TestOpenAIClient_Chat_ToolCall(t *testing.T) {
 					FinishReason: "tool_calls",
 				},
 			},
-			Usage: Usage{
+			Usage: llmclient.Usage{
 				PromptTokens:     60,
 				CompletionTokens: 30,
 				TotalTokens:      90,
@@ -134,19 +135,19 @@ func TestOpenAIClient_Chat_ToolCall(t *testing.T) {
 	}))
 	defer server.Close()
 
-	config := &Config{
+	config := &llmclient.Config{
 		APIKey:  "test-key",
 		BaseURL: server.URL,
 		Model:   "gpt-4",
 	}
 
-	client, err := NewOpenAIClient(config)
+	client, err := llmclient.NewOpenAIClient(config)
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	req := &ChatCompletionRequest{
+	req := &llmclient.ChatCompletionRequest{
 		Model: "gpt-4",
-		Messages: []Message{
+		Messages: []llmclient.Message{
 			{Role: "user", Content: "我要攻击那个哥布林"},
 		},
 	}
@@ -169,19 +170,19 @@ func TestOpenAIClient_Chat_HTTPError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	config := &Config{
+	config := &llmclient.Config{
 		APIKey:  "invalid-key",
 		BaseURL: server.URL,
 		Model:   "gpt-4",
 	}
 
-	client, err := NewOpenAIClient(config)
+	client, err := llmclient.NewOpenAIClient(config)
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	req := &ChatCompletionRequest{
+	req := &llmclient.ChatCompletionRequest{
 		Model:    "gpt-4",
-		Messages: []Message{{Role: "user", Content: "测试"}},
+		Messages: []llmclient.Message{{Role: "user", Content: "测试"}},
 	}
 
 	resp, err := client.ChatCompletion(ctx, req)
@@ -199,20 +200,20 @@ func TestOpenAIClient_Chat_Timeout(t *testing.T) {
 	}))
 	defer server.Close()
 
-	config := &Config{
+	config := &llmclient.Config{
 		APIKey:  "test-key",
 		BaseURL: server.URL,
 		Model:   "gpt-4",
 		Timeout: 1, // 1秒超时
 	}
 
-	client, err := NewOpenAIClient(config)
+	client, err := llmclient.NewOpenAIClient(config)
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	req := &ChatCompletionRequest{
+	req := &llmclient.ChatCompletionRequest{
 		Model:    "gpt-4",
-		Messages: []Message{{Role: "user", Content: "测试"}},
+		Messages: []llmclient.Message{{Role: "user", Content: "测试"}},
 	}
 
 	_, err = client.ChatCompletion(ctx, req)
@@ -226,34 +227,34 @@ func TestRetryableClient_Success_NoRetry(t *testing.T) {
 		attemptCount++
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(ChatCompletionResponse{
+		json.NewEncoder(w).Encode(llmclient.ChatCompletionResponse{
 			ID:     "test-001",
 			Object: "chat.completion",
 			Model:  "gpt-4",
-			Choices: []Choice{
+			Choices: []llmclient.Choice{
 				{
-					Message: Message{Role: "assistant", Content: "成功"},
+					Message: llmclient.Message{Role: "assistant", Content: "成功"},
 				},
 			},
 		})
 	}))
 	defer server.Close()
 
-	baseConfig := &Config{
+	baseConfig := &llmclient.Config{
 		APIKey:  "test-key",
 		BaseURL: server.URL,
 		Model:   "gpt-4",
 	}
 
-	baseClient, err := NewOpenAIClient(baseConfig)
+	baseClient, err := llmclient.NewOpenAIClient(baseConfig)
 	require.NoError(t, err)
 
-	retryClient := NewRetryableClient(baseClient, 3)
+	retryClient := llmclient.NewRetryableClient(baseClient, 3)
 
 	ctx := context.Background()
-	req := &ChatCompletionRequest{
+	req := &llmclient.ChatCompletionRequest{
 		Model:    "gpt-4",
-		Messages: []Message{{Role: "user", Content: "测试"}},
+		Messages: []llmclient.Message{{Role: "user", Content: "测试"}},
 	}
 
 	resp, err := retryClient.ChatCompletion(ctx, req)
@@ -276,34 +277,34 @@ func TestRetryableClient_RetryOn429(t *testing.T) {
 		// 第二次成功
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(ChatCompletionResponse{
+		json.NewEncoder(w).Encode(llmclient.ChatCompletionResponse{
 			ID:     "test-002",
 			Object: "chat.completion",
 			Model:  "gpt-4",
-			Choices: []Choice{
+			Choices: []llmclient.Choice{
 				{
-					Message: Message{Role: "assistant", Content: "重试成功"},
+					Message: llmclient.Message{Role: "assistant", Content: "重试成功"},
 				},
 			},
 		})
 	}))
 	defer server.Close()
 
-	baseConfig := &Config{
+	baseConfig := &llmclient.Config{
 		APIKey:  "test-key",
 		BaseURL: server.URL,
 		Model:   "gpt-4",
 	}
 
-	baseClient, err := NewOpenAIClient(baseConfig)
+	baseClient, err := llmclient.NewOpenAIClient(baseConfig)
 	require.NoError(t, err)
 
-	retryClient := NewRetryableClient(baseClient, 3)
+	retryClient := llmclient.NewRetryableClient(baseClient, 3)
 
 	ctx := context.Background()
-	req := &ChatCompletionRequest{
+	req := &llmclient.ChatCompletionRequest{
 		Model:    "gpt-4",
-		Messages: []Message{{Role: "user", Content: "测试"}},
+		Messages: []llmclient.Message{{Role: "user", Content: "测试"}},
 	}
 
 	resp, err := retryClient.ChatCompletion(ctx, req)
@@ -324,21 +325,21 @@ func TestRetryableClient_RetryExhausted(t *testing.T) {
 	}))
 	defer server.Close()
 
-	baseConfig := &Config{
+	baseConfig := &llmclient.Config{
 		APIKey:  "test-key",
 		BaseURL: server.URL,
 		Model:   "gpt-4",
 	}
 
-	baseClient, err := NewOpenAIClient(baseConfig)
+	baseClient, err := llmclient.NewOpenAIClient(baseConfig)
 	require.NoError(t, err)
 
-	retryClient := NewRetryableClient(baseClient, 2) // 最多重试2次
+	retryClient := llmclient.NewRetryableClient(baseClient, 2) // 最多重试2次
 
 	ctx := context.Background()
-	req := &ChatCompletionRequest{
+	req := &llmclient.ChatCompletionRequest{
 		Model:    "gpt-4",
-		Messages: []Message{{Role: "user", Content: "测试"}},
+		Messages: []llmclient.Message{{Role: "user", Content: "测试"}},
 	}
 
 	_, err = retryClient.ChatCompletion(ctx, req)
@@ -351,12 +352,12 @@ func TestRetryableClient_RetryExhausted(t *testing.T) {
 func TestConfig_Validation(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *Config
+		config  *llmclient.Config
 		wantErr bool
 	}{
 		{
 			name: "valid config",
-			config: &Config{
+			config: &llmclient.Config{
 				Provider:    "openai",
 				APIKey:      "test-key",
 				BaseURL:     "https://api.openai.com",
@@ -368,7 +369,7 @@ func TestConfig_Validation(t *testing.T) {
 		},
 		{
 			name: "empty api key",
-			config: &Config{
+			config: &llmclient.Config{
 				Provider:    "openai",
 				APIKey:      "",
 				BaseURL:     "https://api.openai.com",
@@ -382,7 +383,7 @@ func TestConfig_Validation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := NewOpenAIClient(tt.config)
+			client, err := llmclient.NewOpenAIClient(tt.config)
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Nil(t, client)
@@ -396,7 +397,7 @@ func TestConfig_Validation(t *testing.T) {
 
 // TestMessage_MarshalUnmarshal 测试消息序列化
 func TestMessage_MarshalUnmarshal(t *testing.T) {
-	msg := Message{
+	msg := llmclient.Message{
 		Role:    "user",
 		Content: "测试消息",
 	}
@@ -404,7 +405,7 @@ func TestMessage_MarshalUnmarshal(t *testing.T) {
 	data, err := json.Marshal(msg)
 	require.NoError(t, err)
 
-	var decoded Message
+	var decoded llmclient.Message
 	err = json.Unmarshal(data, &decoded)
 	require.NoError(t, err)
 
@@ -414,10 +415,10 @@ func TestMessage_MarshalUnmarshal(t *testing.T) {
 
 // TestToolCall_MarshalUnmarshal 测试工具调用序列化
 func TestToolCall_MarshalUnmarshal(t *testing.T) {
-	toolCall := ToolCall{
+	toolCall := llmclient.ToolCall{
 		ID:   "call_001",
 		Type: "function",
-		Function: FunctionCall{
+		Function: llmclient.FunctionCall{
 			Name:      "roll_dice",
 			Arguments: `{"dice_type":"d20","modifier":5}`,
 		},
@@ -426,7 +427,7 @@ func TestToolCall_MarshalUnmarshal(t *testing.T) {
 	data, err := json.Marshal(toolCall)
 	require.NoError(t, err)
 
-	var decoded ToolCall
+	var decoded llmclient.ToolCall
 	err = json.Unmarshal(data, &decoded)
 	require.NoError(t, err)
 
@@ -438,7 +439,7 @@ func TestToolCall_MarshalUnmarshal(t *testing.T) {
 
 // TestUsage_CalculateTotal 测试Token使用统计
 func TestUsage_CalculateTotal(t *testing.T) {
-	usage := Usage{
+	usage := llmclient.Usage{
 		PromptTokens:     100,
 		CompletionTokens: 50,
 		TotalTokens:      150,

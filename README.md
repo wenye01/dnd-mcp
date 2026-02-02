@@ -1,254 +1,350 @@
-# Scripts 使用说明
+# DND MCP Client
 
-本目录包含项目的构建和测试脚本。
+> 一个基于 Go 和 PostgreSQL 的 DND（龙与地下城）MCP (Model Context Protocol) 客户端实现，支持与 LLM 集成，提供完整的会话管理和消息处理功能。
 
-## 📁 目录结构
+[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14+-336791?style=flat&logo=postgresql)](https://www.postgresql.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-```
-scripts/
-├── build.bat         # Windows 构建脚本
-├── test.ps1          # PowerShell 测试脚本
-├── migrate/          # 数据库迁移工具
-└── README.md         # 本文件
-```
+## ✨ 特性
+
+- 🎯 **完整的 MCP 协议实现** - 支持标准 Model Context Protocol
+- 💬 **会话管理** - 多会话支持，每个会话独立管理
+- 🤖 **LLM 集成** - 支持 OpenAI API，易于扩展其他提供商
+- 🔄 **自动重试** - 内置智能重试机制，处理 429 和 5xx 错误
+- 📊 **数据持久化** - PostgreSQL 存储，支持完整的 CRUD 操作
+- 🧪 **完整测试** - 27+ 单元测试 + 5+ 集成测试
+- 🚀 **一键部署** - 完整的自动化脚本，从零到生产
+- 📈 **高并发** - 支持并发消息处理，线程安全
+
+## 📋 目录
+
+- [快速开始](#快速开始)
+- [项目结构](#项目结构)
+- [核心功能](#核心功能)
+- [开发指南](#开发指南)
+- [测试](#测试)
+- [部署](#部署)
+- [文档](#文档)
+- [贡献](#贡献)
+- [许可证](#许可证)
 
 ## 🚀 快速开始
 
-### PowerShell 环境
+### 前置要求
 
-所有脚本都设计为在 PowerShell 环境中直接运行。
+- Go 1.25+
+- PostgreSQL 14+
+- PowerShell (Windows) 或 Bash (Linux/macOS)
 
-#### 1. 构建项目
-
-```powershell
-# 从项目根目录运行
-.\scripts\build.bat build
-```
-
-输出：
-```
-Building MCP Client...
-Build successful: bin\dnd-mcp-client.exe
-```
-
-#### 2. 运行测试
+### 一键启动
 
 ```powershell
-# 运行完整测试套件
+# 1. 克隆项目
+git clone https://github.com/your-org/dnd-mcp.git
+cd dnd-mcp
+
+# 2. 安装依赖
+go mod download
+
+# 3. 初始化数据库
+.\scripts\init-database.ps1
+
+# 4. 运行测试
 .\scripts\test.ps1
 ```
 
-#### 3. 其他常用命令
+**就这么简单！** 🎉
+
+### 验证安装
 
 ```powershell
-# 运行应用
-.\scripts\build.bat run
-
-# 清理构建文件
-.\scripts\build.bat clean
-
-# 代码检查
-.\scripts\build.bat lint
-
-# 格式化代码
-.\scripts\build.bat fmt
-
-# 管理依赖
-.\scripts\build.bat deps
-```
-
-## 📋 build.bat 命令参考
-
-### 可用命令
-
-| 命令 | 说明 | 示例 |
-|------|------|------|
-| `build` | 构建应用 | `.\scripts\build.bat build` |
-| `run` | 运行应用 | `.\scripts\build.bat run` |
-| `test` | 运行单元测试 | `.\scripts\build.bat test` |
-| `migrate-up` | 执行数据库迁移 | `.\scripts\build.bat migrate-up` |
-| `migrate-down` | 回滚数据库迁移 | `.\scripts\build.bat migrate-down` |
-| `deps` | 下载依赖 | `.\scripts\build.bat deps` |
-| `lint` | 代码检查 | `.\scripts\build.bat lint` |
-| `fmt` | 格式化代码 | `.\scripts\build.bat fmt` |
-| `clean` | 清理构建文件 | `.\scripts\build.bat clean` |
-| `help` | 显示帮助信息 | `.\scripts\build.bat help` |
-
-### 使用示例
-
-```powershell
-# 构建并运行
-.\scripts\build.bat build
-.\scripts\build.bat run
-
-# 运行测试
-.\scripts\build.bat test
-
-# 清理并重新构建
-.\scripts\build.bat clean
-.\scripts\build.bat build
-```
-
-## 🧪 test.ps1 测试脚本
-
-### 功能
-
-test.ps1 是一个完整的测试脚本，提供以下功能：
-
-1. ✅ 环境检查（Go、数据库）
-2. ✅ 清理旧测试数据
-3. ✅ 运行单元测试
-4. ✅ 运行集成测试
-5. ✅ 生成覆盖率报告
-
-### 使用方法
-
-```powershell
-# 运行所有测试
-.\scripts\test.ps1
-
-# 查看测试输出
-Get-Content tests\reports\test_output.txt
-
-# 查看覆盖率报告
-# 报告生成在: tests\reports\coverage.html
-```
-
-### 测试报告位置
-
-测试报告会保存在 `tests/reports/` 目录：
-
-```
-tests/reports/
-├── test_output.txt       # 完整测试输出
-├── test_report.txt       # 测试报告摘要
-├── coverage.out          # 覆盖率数据
-└── coverage.html         # HTML 覆盖率报告
-```
-
-### 环境要求
-
-- ✅ Go 1.24+
-- ✅ PostgreSQL 数据库（可选，用于集成测试）
-- ✅ PowerShell 环境
-
-### 数据库配置
-
-默认测试数据库配置：
-- 主机: `localhost`
-- 端口: `5432`
-- 用户: `postgres`
-- 密码: `070831`
-- 数据库: `dnd_mcp_test`
-
-如需修改，请编辑 `test.ps1` 中的环境变量设置。
-
-## 🔧 数据库迁移
-
-### 执行迁移
-
-```powershell
-# 向上迁移（创建表结构）
-.\scripts\build.bat migrate-up
-
-# 向下迁移（删除表结构）
-.\scripts\build.bat migrate-down
-```
-
-### 迁移文件位置
-
-迁移文件位于项目根目录的 `migrations/` 文件夹：
-
-```
-migrations/
-├── 001_initial_schema.up.sql
-└── 001_initial_schema.down.sql
-```
-
-## ⚠️ 注意事项
-
-### 执行策略
-
-如果在运行 PowerShell 脚本时遇到执行策略错误：
-
-```powershell
-# 临时允许脚本执行
-Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
-
-# 然后运行脚本
-.\scripts\test.ps1
-```
-
-### 工作目录
-
-所有脚本都会自动切换到项目根目录执行，因此可以从任何位置运行：
-
-```powershell
-# 从项目根目录运行
-.\scripts\build.bat build
-.\scripts\test.ps1
-
-# 从 scripts 目录运行也可以
-cd scripts
-.\build.bat build
-.\test.ps1
-```
-
-## 📝 常见问题
-
-### Q1: 提示 "无法加载文件，因为在此系统上禁止运行脚本"
-
-**解决方案：**
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
-```
-
-### Q2: 构建失败，提示找不到 Go
-
-**解决方案：**
-确保 Go 已安装并在 PATH 中：
-```powershell
+# 检查 Go
 go version
+
+# 检查 PostgreSQL
+psql --version
+
+# 运行快速测试
+go test -v ./tests/unit/store -run TestPostgresStore_CreateSession
 ```
 
-### Q3: 数据库连接失败
+## 📁 项目结构
 
-**解决方案：**
-1. 确保 PostgreSQL 正在运行
-2. 检查密码配置（test.ps1 第 12-13 行）
-3. 确认数据库服务可访问
+```
+dnd-mcp/
+├── cmd/                  # 主程序入口
+│   └── server/           # HTTP 服务器
+├── internal/             # 内部包（不对外暴露）
+│   ├── api/             # API 处理器
+│   │   └── handler/     # HTTP 请求处理
+│   ├── client/          # 客户端实现
+│   │   └── llm/         # LLM 客户端（OpenAI）
+│   ├── models/          # 数据模型定义
+│   └── store/           # 数据持久化层
+├── tests/               # 测试代码
+│   ├── unit/            # 单元测试
+│   │   ├── store/       # Store 测试
+│   │   ├── client/llm/  # LLM 测试
+│   │   └── api/handler/ # Handler 测试
+│   ├── integration/     # 集成测试
+│   └── reports/         # 测试报告
+├── scripts/             # 脚本工具
+│   ├── migrate/         # 数据库迁移工具
+│   ├── migrations/      # SQL 迁移文件
+│   ├── test.ps1         # 测试脚本
+│   ├── init-database.ps1 # 数据库初始化
+│   └── drop-database.ps1 # 数据库清理
+├── doc/                 # 项目文档
+├── go.mod
+├── go.sum
+└── README.md
+```
 
-## 🎯 最佳实践
+## 🎯 核心功能
 
-1. **构建前先清理**
-   ```powershell
-   .\scripts\build.bat clean
-   .\scripts\build.bat build
-   ```
+### 1. 会话管理
 
-2. **提交代码前运行测试**
-   ```powershell
-   .\scripts\test.ps1
-   ```
+```go
+// 创建新会话
+session := &models.Session{
+    ID:           uuid.New(),
+    CampaignName: "被遗忘的国度",
+    Location:     "地下城入口",
+    GameTime:     "Morning",
+    State:        make(map[string]interface{}),
+}
+store.CreateSession(ctx, session)
 
-3. **定期运行代码检查**
-   ```powershell
-   .\scripts\build.bat lint
-   .\scripts\build.bat fmt
-   ```
+// 获取会话
+session, err := store.GetSession(ctx, sessionID)
+```
 
-4. **查看覆盖率报告**
-   ```powershell
-   # 运行测试后打开 HTML 报告
-   start tests\reports\coverage.html
-   ```
+### 2. 消息处理
 
-## 📚 相关文档
+```go
+// 创建消息
+message := &models.Message{
+    ID:        uuid.New(),
+    SessionID: sessionID,
+    Role:      "user",
+    Content:   "我要攻击那个哥布林",
+    PlayerID:  "player-001",
+}
+store.CreateMessage(ctx, message)
 
-- [项目文档](../doc/)
-- [开发计划](../doc/MCP_Client开发计划.md)
-- [测试报告](../tests/reports/)
+// 获取消息历史
+messages, err := store.GetMessages(ctx, sessionID, 100, 0)
+```
+
+### 3. LLM 集成
+
+```go
+// 创建 OpenAI 客户端
+config := &llm.Config{
+    APIKey:      "your-api-key",
+    Model:       "gpt-4",
+    Temperature: 0.7,
+    MaxRetries:  3,
+}
+client := llm.NewOpenAIClient(config)
+
+// 发送聊天请求
+req := &llm.ChatCompletionRequest{
+    Model:    "gpt-4",
+    Messages: []llm.Message{
+        {Role: "system", Content: "你是一个DND地下城主"},
+        {Role: "user", Content: "我要投骰子"},
+    },
+}
+resp, err := client.ChatCompletion(ctx, req)
+```
+
+### 4. API 处理
+
+```go
+// 创建 Chat Handler
+handler := handler.NewChatHandler(llmClient, dataStore)
+
+// 注册路由
+router.POST("/api/sessions/:id/chat", handler.ChatMessage)
+```
+
+## 📖 开发指南
+
+### 环境设置
+
+```powershell
+# 1. 克隆项目
+git clone <repository-url>
+cd dnd-mcp
+
+# 2. 安装依赖
+go mod download
+
+# 3. 设置环境变量（可选）
+$env:PGPASSWORD = "your_password"
+$env:TEST_DB_PASSWORD = "your_password"
+```
+
+### 运行项目
+
+```powershell
+# 构建项目
+go build -o bin/dnd-mcp.exe ./cmd/server
+
+# 运行服务器
+.\bin\dnd-mcp.exe
+```
+
+### 代码格式化
+
+```powershell
+# 格式化代码
+go fmt ./...
+
+# 静态检查
+go vet ./...
+```
+
+## 🧪 测试
+
+### 运行所有测试
+
+```powershell
+# 使用测试脚本（推荐）
+.\scripts\test.ps1
+
+# 或直接使用 go test
+go test -v ./tests/unit/... ./tests/integration/...
+```
+
+### 测试覆盖
+
+| 类型 | 数量 | 文件 |
+|------|------|------|
+| 单元测试 | 27 | `tests/unit/` |
+| 集成测试 | 5 | `tests/integration/` |
+| **总计** | **32** | |
+
+### 查看测试报告
+
+```powershell
+# 测试报告
+Get-Content tests\reports\*.txt
+
+# 覆盖率报告（HTML）
+start tests\reports\coverage.html
+```
+
+### 运行特定测试
+
+```powershell
+# 单元测试
+go test -v ./tests/unit/...
+
+# 集成测试
+go test -v ./tests/integration/...
+
+# 特定包
+go test -v ./tests/unit/store
+
+# 特定测试函数
+go test -v ./tests/unit/store -run TestPostgresStore_CreateSession
+```
+
+## 🚀 部署
+
+### 快速部署
+
+```powershell
+# 一键部署（全新环境）
+.\scripts\clean-and-test.ps1
+```
+
+### 手动部署
+
+```powershell
+# 1. 初始化数据库
+.\scripts\init-database.ps1
+
+# 2. 运行迁移
+go run scripts/migrate/main.go -action up -dsn "postgres://postgres:password@localhost:5432/dnd_mcp_test?sslmode=disable"
+
+# 3. 运行测试
+.\scripts\test.ps1
+```
+
+### 环境变量
+
+| 变量名 | 默认值 | 说明 |
+|--------|--------|------|
+| `PGPASSWORD` | `070831` | PostgreSQL 密码 |
+| `TEST_DB_PASSWORD` | `070831` | 测试数据库密码 |
+| `DATABASE_URL` | 自动生成 | 完整数据库连接字符串 |
+
+## 📚 文档
+
+- **[SETUP_GUIDE.md](SETUP_GUIDE.md)** - 完整的部署和设置指南
+- **[QUICKSTART.md](QUICKSTART.md)** - 快速参考卡片
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - 部署和维护指南
+- **[tests/README.md](tests/README.md)** - 测试指南
+- **[doc/](doc/)** - 项目详细文档
+  - [MCP_Client开发计划.md](doc/MCP_Client开发计划.md) - 开发计划
+  - [MCP_Client设计.md](doc/MCP_Client设计.md) - 架构设计
+  - [规范.md](doc/规范.md) - 编码规范
+
+## 🛠️ 技术栈
+
+- **语言**: Go 1.25+
+- **数据库**: PostgreSQL 14+
+- **Web 框架**: Gin
+- **LLM**: OpenAI API
+- **测试**: Testify
+- **数据库驱动**: lib/pq
+
+## 🤝 贡献
+
+欢迎贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解详情。
+
+### 开发流程
+
+1. Fork 项目
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 创建 Pull Request
+
+### 代码规范
+
+- 遵循 [doc/规范.md](doc/规范.md)
+- 所有代码必须通过 `go vet` 和 `go fmt`
+- 新功能必须包含测试
+- 测试覆盖率不低于 80%
+
+## 📝 许可证
+
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
+
+## 🔗 相关链接
+
+- [MCP 协议规范](https://modelcontextprotocol.io/)
+- [OpenAI API 文档](https://platform.openai.com/docs/api-reference)
+- [Gin Web 框架](https://gin-gonic.com/)
+- [PostgreSQL 文档](https://www.postgresql.org/docs/)
+
+## 💬 联系方式
+
+- 项目主页: [https://github.com/your-org/dnd-mcp](https://github.com/your-org/dnd-mcp)
+- 问题反馈: [GitHub Issues](https://github.com/your-org/dnd-mcp/issues)
+- 邮件: your-email@example.com
+
+## 🙏 致谢
+
+感谢所有贡献者！
 
 ---
 
-**最后更新**: 2026-02-01
+**⭐ 如果这个项目对你有帮助，请给个 Star！**
+
+Made with ❤️ by DND MCP Team

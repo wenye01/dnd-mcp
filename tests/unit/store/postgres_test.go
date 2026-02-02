@@ -1,13 +1,15 @@
-package store
+package store_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/dnd-mcp/client/internal/models"
+	"github.com/dnd-mcp/client/internal/store"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,9 +22,9 @@ func TestPostgresStore_CreateSession(t *testing.T) {
 	require.NoError(t, err, "Failed to setup test database")
 	defer db.Close()
 
-	store, err := NewPostgresStore(getTestDatabaseURL())
+	dataStore, err := store.NewPostgresStore(getTestDatabaseURL())
 	require.NoError(t, err)
-	defer store.Close()
+	defer dataStore.Close()
 
 	ctx := context.Background()
 
@@ -37,11 +39,11 @@ func TestPostgresStore_CreateSession(t *testing.T) {
 		State:        map[string]interface{}{},
 	}
 
-	err = store.CreateSession(ctx, session)
+	err = dataStore.CreateSession(ctx, session)
 	assert.NoError(t, err, "Failed to create session")
 
 	// 验证会话已创建
-	fetched, err := store.GetSession(ctx, session.ID)
+	fetched, err := dataStore.GetSession(ctx, session.ID)
 	assert.NoError(t, err)
 	assert.Equal(t, session.ID, fetched.ID)
 	assert.Equal(t, session.CampaignName, fetched.CampaignName)
@@ -50,23 +52,23 @@ func TestPostgresStore_CreateSession(t *testing.T) {
 
 // TestPostgresStore_GetSession_NotFound 测试获取不存在的会话
 func TestPostgresStore_GetSession_NotFound(t *testing.T) {
-	store, err := setupTestStore()
+	dataStore, err := setupTestStore()
 	require.NoError(t, err)
-	defer store.Close()
+	defer dataStore.Close()
 
 	ctx := context.Background()
 	sessionID := mustParseUUID("550e8400-e29b-41d4-a716-446655449999")
 
-	session, err := store.GetSession(ctx, sessionID)
+	session, err := dataStore.GetSession(ctx, sessionID)
 	assert.Error(t, err)
 	assert.Nil(t, session)
 }
 
 // TestPostgresStore_CreateMessage 测试创建消息
 func TestPostgresStore_CreateMessage(t *testing.T) {
-	store, err := setupTestStore()
+	dataStore, err := setupTestStore()
 	require.NoError(t, err)
-	defer store.Close()
+	defer dataStore.Close()
 
 	ctx := context.Background()
 
@@ -82,7 +84,7 @@ func TestPostgresStore_CreateMessage(t *testing.T) {
 		CampaignName: "测试战役",
 		State:        map[string]interface{}{},
 	}
-	err = store.CreateSession(ctx, session)
+	err = dataStore.CreateSession(ctx, session)
 	require.NoError(t, err)
 
 	// 创建消息
@@ -94,11 +96,11 @@ func TestPostgresStore_CreateMessage(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	err = store.CreateMessage(ctx, message)
+	err = dataStore.CreateMessage(ctx, message)
 	assert.NoError(t, err, "Failed to create message")
 
 	// 验证消息已创建
-	messages, err := store.GetMessages(ctx, sessionID, 100, 0)
+	messages, err := dataStore.GetMessages(ctx, sessionID, 100, 0)
 	assert.NoError(t, err)
 	assert.Len(t, messages, 1)
 	assert.Equal(t, message.Content, messages[0].Content)
@@ -107,23 +109,23 @@ func TestPostgresStore_CreateMessage(t *testing.T) {
 
 // TestPostgresStore_ListMessages_Empty 测试列出空消息列表
 func TestPostgresStore_ListMessages_Empty(t *testing.T) {
-	store, err := setupTestStore()
+	dataStore, err := setupTestStore()
 	require.NoError(t, err)
-	defer store.Close()
+	defer dataStore.Close()
 
 	ctx := context.Background()
 	sessionID := mustParseUUID("550e8400-e29b-41d4-a716-446655440004")
 
-	messages, err := store.GetMessages(ctx, sessionID, 100, 0)
+	messages, err := dataStore.GetMessages(ctx, sessionID, 100, 0)
 	assert.NoError(t, err)
 	assert.Empty(t, messages)
 }
 
 // TestPostgresStore_ListMessages_Multiple 测试列出多条消息
 func TestPostgresStore_ListMessages_Multiple(t *testing.T) {
-	store, err := setupTestStore()
+	dataStore, err := setupTestStore()
 	require.NoError(t, err)
-	defer store.Close()
+	defer dataStore.Close()
 
 	ctx := context.Background()
 
@@ -139,7 +141,7 @@ func TestPostgresStore_ListMessages_Multiple(t *testing.T) {
 		CampaignName: "测试战役",
 		State:        map[string]interface{}{},
 	}
-	err = store.CreateSession(ctx, session)
+	err = dataStore.CreateSession(ctx, session)
 	require.NoError(t, err)
 
 	// 创建多条消息
@@ -168,12 +170,12 @@ func TestPostgresStore_ListMessages_Multiple(t *testing.T) {
 	}
 
 	for _, msg := range messages {
-		err = store.CreateMessage(ctx, msg)
+		err = dataStore.CreateMessage(ctx, msg)
 		require.NoError(t, err)
 	}
 
 	// 列出消息
-	fetched, err := store.GetMessages(ctx, sessionID, 100, 0)
+	fetched, err := dataStore.GetMessages(ctx, sessionID, 100, 0)
 	assert.NoError(t, err)
 	assert.Len(t, fetched, 3)
 	assert.Equal(t, "消息1", fetched[0].Content)
@@ -183,9 +185,9 @@ func TestPostgresStore_ListMessages_Multiple(t *testing.T) {
 
 // TestPostgresStore_DeleteSession_SoftDelete 测试软删除会话
 func TestPostgresStore_DeleteSession_SoftDelete(t *testing.T) {
-	store, err := setupTestStore()
+	dataStore, err := setupTestStore()
 	require.NoError(t, err)
-	defer store.Close()
+	defer dataStore.Close()
 
 	ctx := context.Background()
 
@@ -201,43 +203,49 @@ func TestPostgresStore_DeleteSession_SoftDelete(t *testing.T) {
 		CampaignName: "测试战役",
 		State:        map[string]interface{}{},
 	}
-	err = store.CreateSession(ctx, session)
+	err = dataStore.CreateSession(ctx, session)
 	require.NoError(t, err)
 
 	// 删除会话
-	err = store.DeleteSession(ctx, sessionID)
+	err = dataStore.DeleteSession(ctx, sessionID)
 	assert.NoError(t, err, "Failed to delete session")
 
 	// 验证会话已被软删除
-	fetched, err := store.GetSession(ctx, sessionID)
+	fetched, err := dataStore.GetSession(ctx, sessionID)
 	assert.Error(t, err)
 	assert.Nil(t, fetched)
 }
 
 // setupTestDB 设置测试数据库（使用真实数据库）
-func setupTestDB() (*PostgresStore, error) {
+func setupTestDB() (*store.PostgresStore, error) {
 	databaseURL := getTestDatabaseURL()
-	return NewPostgresStore(databaseURL)
+	return store.NewPostgresStore(databaseURL)
 }
 
 // setupTestStore 设置测试store并清理数据
-func setupTestStore() (*PostgresStore, error) {
-	store, err := setupTestDB()
+func setupTestStore() (*store.PostgresStore, error) {
+	dataStore, err := setupTestDB()
 	if err != nil {
 		return nil, err
 	}
 
 	// 清理测试数据
-	cleanupTestData(store)
+	cleanupTestData(dataStore)
 
-	return store, nil
+	return dataStore, nil
 }
 
 // cleanupTestData 清理测试数据
-func cleanupTestData(store *PostgresStore) {
+func cleanupTestData(dataStore *store.PostgresStore) {
 	ctx := context.Background()
-	store.db.ExecContext(ctx, "DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE campaign_name = '测试战役')")
-	store.db.ExecContext(ctx, "DELETE FROM sessions WHERE campaign_name = '测试战役'")
+	databaseURL := getTestDatabaseURL()
+	db, err := sql.Open("postgres", databaseURL)
+	if err != nil {
+		return
+	}
+	defer db.Close()
+	db.ExecContext(ctx, "DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE campaign_name = '测试战役')")
+	db.ExecContext(ctx, "DELETE FROM sessions WHERE campaign_name = '测试战役'")
 }
 
 // getTestDatabaseURL 获取测试数据库URL

@@ -17,7 +17,7 @@ func main() {
 	// 解析命令行参数
 	action := flag.String("action", "up", "迁移动作: up 或 down")
 	dsn := flag.String("dsn", "", "数据库连接字符串 (默认从环境变量POSTGRESQL_URL读取)")
-	migrationsDir := flag.String("dir", "./migrations", "迁移文件目录")
+	migrationsDir := flag.String("dir", "./scripts/migrations", "迁移文件目录")
 	flag.Parse()
 
 	// 获取数据库连接字符串

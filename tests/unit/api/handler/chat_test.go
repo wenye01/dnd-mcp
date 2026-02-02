@@ -1,4 +1,4 @@
-package handler
+package handler_test
 
 import (
 	"bytes"
@@ -12,34 +12,36 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dnd-mcp/client/internal/client/llm"
+	llmclient "github.com/dnd-mcp/client/internal/client/llm"
 	"github.com/dnd-mcp/client/internal/store"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	handlerpkg "github.com/dnd-mcp/client/internal/api/handler"
 )
 
 // MockLLMClient mock LLM客户端用于测试
 type MockLLMClient struct {
 	response    string
-	toolCalls   []llm.ToolCall
+	toolCalls   []llmclient.ToolCall
 	shouldError bool
 }
 
-func (m *MockLLMClient) ChatCompletion(ctx context.Context, req *llm.ChatCompletionRequest) (*llm.ChatCompletionResponse, error) {
+func (m *MockLLMClient) ChatCompletion(ctx context.Context, req *llmclient.ChatCompletionRequest) (*llmclient.ChatCompletionResponse, error) {
 	if m.shouldError {
 		return nil, &LLMError{Message: "LLM error"}
 	}
 
-	return &llm.ChatCompletionResponse{
+	return &llmclient.ChatCompletionResponse{
 		ID:     "test-response-001",
 		Object: "chat.completion",
 		Model:  req.Model,
-		Choices: []llm.Choice{
+		Choices: []llmclient.Choice{
 			{
 				Index: 0,
-				Message: llm.Message{
+				Message: llmclient.Message{
 					Role:      "assistant",
 					Content:   m.response,
 					ToolCalls: m.toolCalls,
@@ -47,7 +49,7 @@ func (m *MockLLMClient) ChatCompletion(ctx context.Context, req *llm.ChatComplet
 				FinishReason: "stop",
 			},
 		},
-		Usage: llm.Usage{
+		Usage: llmclient.Usage{
 			PromptTokens:     50,
 			CompletionTokens: 30,
 			TotalTokens:      80,
@@ -55,8 +57,8 @@ func (m *MockLLMClient) ChatCompletion(ctx context.Context, req *llm.ChatComplet
 	}, nil
 }
 
-func (m *MockLLMClient) StreamCompletion(ctx context.Context, req *llm.ChatCompletionRequest) (<-chan llm.StreamChunk, error) {
-	ch := make(chan llm.StreamChunk)
+func (m *MockLLMClient) StreamCompletion(ctx context.Context, req *llmclient.ChatCompletionRequest) (<-chan llmclient.StreamChunk, error) {
+	ch := make(chan llmclient.StreamChunk)
 	close(ch)
 	return ch, nil
 }
@@ -122,7 +124,7 @@ func TestChatHandler_ChatMessage_Success(t *testing.T) {
 		response: "你好，冒险者！有什么可以帮你的吗？",
 	}
 
-	handler := NewChatHandler(mockLLM, dataStore)
+	handler := handlerpkg.NewChatHandler(mockLLM, dataStore)
 
 	sessionID := createTestSession(t, db, ctx)
 
@@ -163,7 +165,7 @@ func TestChatHandler_ChatMessage_SessionNotFound(t *testing.T) {
 		response: "test",
 	}
 
-	handler := NewChatHandler(mockLLM, dataStore)
+	handler := handlerpkg.NewChatHandler(mockLLM, dataStore)
 
 	router := gin.New()
 	router.POST("/api/sessions/:id/chat", handler.ChatMessage)
@@ -195,7 +197,7 @@ func TestChatHandler_ChatMessage_InvalidUUID(t *testing.T) {
 		response: "test",
 	}
 
-	handler := NewChatHandler(mockLLM, dataStore)
+	handler := handlerpkg.NewChatHandler(mockLLM, dataStore)
 
 	router := gin.New()
 	router.POST("/api/sessions/:id/chat", handler.ChatMessage)
@@ -234,7 +236,7 @@ func TestChatHandler_ChatMessage_MissingMessage(t *testing.T) {
 		response: "test",
 	}
 
-	handler := NewChatHandler(mockLLM, dataStore)
+	handler := handlerpkg.NewChatHandler(mockLLM, dataStore)
 
 	sessionID := createTestSession(t, db, ctx)
 
@@ -271,11 +273,11 @@ func TestChatHandler_ChatMessage_ToolCalls(t *testing.T) {
 
 	mockLLM := &MockLLMClient{
 		response: "",
-		toolCalls: []llm.ToolCall{
+		toolCalls: []llmclient.ToolCall{
 			{
 				ID:   "call_001",
 				Type: "function",
-				Function: llm.FunctionCall{
+				Function: llmclient.FunctionCall{
 					Name:      "roll_dice",
 					Arguments: `{"dice_type":"d20","modifier":5}`,
 				},
@@ -283,7 +285,7 @@ func TestChatHandler_ChatMessage_ToolCalls(t *testing.T) {
 		},
 	}
 
-	handler := NewChatHandler(mockLLM, dataStore)
+	handler := handlerpkg.NewChatHandler(mockLLM, dataStore)
 
 	sessionID := createTestSession(t, db, ctx)
 
@@ -330,7 +332,7 @@ func TestChatHandler_ChatMessage_PlayerID(t *testing.T) {
 		response: "你好，玩家！",
 	}
 
-	handler := NewChatHandler(mockLLM, dataStore)
+	handler := handlerpkg.NewChatHandler(mockLLM, dataStore)
 
 	sessionID := createTestSession(t, db, ctx)
 

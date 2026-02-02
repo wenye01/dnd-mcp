@@ -89,18 +89,18 @@ Write-Host ""
 Write-Host "[4/6] Running unit tests..."
 Write-Host ""
 
-Write-Host "Testing: internal/store" -ForegroundColor Cyan
-go test -v ./internal/store/... 2>&1 | Tee-Object -FilePath "tests/reports/store_tests.txt" -Append
+Write-Host "Testing: tests/unit/store" -ForegroundColor Cyan
+go test -v ./tests/unit/store/... 2>&1 | Tee-Object -FilePath "tests/reports/store_tests.txt" -Append
 $storeResult = $LASTEXITCODE
 
 Write-Host ""
-Write-Host "Testing: internal/client/llm" -ForegroundColor Cyan
-go test -v ./internal/client/llm/... 2>&1 | Tee-Object -FilePath "tests/reports/llm_tests.txt" -Append
+Write-Host "Testing: tests/unit/client/llm" -ForegroundColor Cyan
+go test -v ./tests/unit/client/llm/... 2>&1 | Tee-Object -FilePath "tests/reports/llm_tests.txt" -Append
 $llmResult = $LASTEXITCODE
 
 Write-Host ""
-Write-Host "Testing: internal/api/handler" -ForegroundColor Cyan
-go test -v ./internal/api/handler/... 2>&1 | Tee-Object -FilePath "tests/reports/handler_tests.txt" -Append
+Write-Host "Testing: tests/unit/api/handler" -ForegroundColor Cyan
+go test -v ./tests/unit/api/handler/... 2>&1 | Tee-Object -FilePath "tests/reports/handler_tests.txt" -Append
 $handlerResult = $LASTEXITCODE
 
 # Run integration tests
@@ -115,13 +115,13 @@ $integrationResult = $LASTEXITCODE
 Write-Host ""
 Write-Host "[6/6] Checking for race conditions..."
 Write-Host "Testing with -race flag (this may take a while)..."
-go test -race ./internal/... ./tests/integration/... 2>&1 | Tee-Object -FilePath "tests/reports/race_tests.txt" -Append
+go test -race ./tests/unit/... ./tests/integration/... 2>&1 | Tee-Object -FilePath "tests/reports/race_tests.txt" -Append
 $raceResult = $LASTEXITCODE
 
 # Generate coverage
 Write-Host ""
 Write-Host "Generating coverage report..."
-$coverageOutput = go test -coverprofile=tests/reports/coverage.out -covermode=atomic ./internal/... ./tests/integration/... 2>&1
+$coverageOutput = go test -coverprofile=tests/reports/coverage.out -covermode=atomic ./tests/unit/... ./tests/integration/... 2>&1
 if (Test-Path "tests/reports/coverage.out") {
     go tool cover -html=tests/reports/coverage.out -o tests/reports/coverage.html 2>&1 | Out-Null
     Write-Host "[OK] Coverage report generated: tests/reports/coverage.html" -ForegroundColor Green
@@ -145,24 +145,24 @@ Write-Host ""
 $allPassed = $true
 
 if ($storeResult -ne 0) {
-    Write-Host "[FAIL] internal/store tests" -ForegroundColor Red
+    Write-Host "[FAIL] tests/unit/store tests" -ForegroundColor Red
     $allPassed = $false
 } else {
-    Write-Host "[PASS] internal/store tests" -ForegroundColor Green
+    Write-Host "[PASS] tests/unit/store tests" -ForegroundColor Green
 }
 
 if ($llmResult -ne 0) {
-    Write-Host "[FAIL] internal/client/llm tests" -ForegroundColor Red
+    Write-Host "[FAIL] tests/unit/client/llm tests" -ForegroundColor Red
     $allPassed = $false
 } else {
-    Write-Host "[PASS] internal/client/llm tests" -ForegroundColor Green
+    Write-Host "[PASS] tests/unit/client/llm tests" -ForegroundColor Green
 }
 
 if ($handlerResult -ne 0) {
-    Write-Host "[FAIL] internal/api/handler tests" -ForegroundColor Red
+    Write-Host "[FAIL] tests/unit/api/handler tests" -ForegroundColor Red
     $allPassed = $false
 } else {
-    Write-Host "[PASS] internal/api/handler tests" -ForegroundColor Green
+    Write-Host "[PASS] tests/unit/api/handler tests" -ForegroundColor Green
 }
 
 if ($integrationResult -ne 0) {
