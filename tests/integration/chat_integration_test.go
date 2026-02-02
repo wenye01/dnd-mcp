@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,18 +20,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	_ "github.com/testcontainers/testcontainers-go"
 )
 
 // ChatIntegrationTest 集成测试套件
 type ChatIntegrationTest struct {
-	db            *sql.DB
-	dataStore     store.Store
-	llmClient     llm.Client
-	router        *gin.Engine
-	server        *httptest.Server
-	serverURL     string
-	cleanup       func()
+	db        *sql.DB
+	dataStore store.Store
+	llmClient *MockLLMClientForIntegration
+	router    *gin.Engine
+	server    *httptest.Server
+	cleanup   func()
 }
 
 // SetupChatIntegrationTest 设置聊天集成测试
@@ -42,16 +41,16 @@ func SetupChatIntegrationTest(t *testing.T) *ChatIntegrationTest {
 	db, err := sql.Open("postgres", databaseURL)
 	require.NoError(t, err, "Failed to connect to test database")
 
-	// 运行迁移
-	runTestMigrations(t, db)
+	// 清理测试数据
+	cleanupTestData(t, db)
 
 	// 创建store
 	dataStore, err := store.NewPostgresStore(databaseURL)
 	require.NoError(t, err, "Failed to create store")
 
-	// 创建mock LLM客户端（可以配置为使用真实的mock服务器）
+	// 创建mock LLM客户端
 	mockLLM := &MockLLMClientForIntegration{
-		responses: make(map[string]string),
+		defaultResponse: "默认响应",
 	}
 
 	// 创建chat handler
@@ -60,9 +59,6 @@ func SetupChatIntegrationTest(t *testing.T) *ChatIntegrationTest {
 	// 设置路由
 	router := gin.New()
 	router.POST("/api/sessions/:id/chat", chatHandler.ChatMessage)
-	router.GET("/api/sessions", handler.NewSessionHandler(dataStore).ListSessions)
-	router.POST("/api/sessions", handler.NewSessionHandler(dataStore).CreateSession)
-	router.GET("/api/sessions/:id", handler.NewSessionHandler(dataStore).GetSession)
 
 	// 创建测试服务器
 	server := httptest.NewServer(router)
@@ -79,7 +75,6 @@ func SetupChatIntegrationTest(t *testing.T) *ChatIntegrationTest {
 		llmClient: mockLLM,
 		router:    router,
 		server:    server,
-		serverURL: server.URL,
 		cleanup:   cleanup,
 	}
 }
@@ -90,8 +85,7 @@ func TestChatIntegration_SimpleConversation(t *testing.T) {
 	defer test.cleanup()
 
 	// 设置mock响应
-	mockLLM := test.llmClient.(*MockLLMClientForIntegration)
-	mockLLM.SetResponse("你好，勇敢的冒险者！欢迎来到地下城。")
+	test.llmClient.SetResponse("你好，勇敢的冒险者！欢迎来到地下城。")
 
 	// 1. 创建会话
 	sessionID := test.createSession(t, "被遗忘的国度")
@@ -119,24 +113,25 @@ func TestChatIntegration_MultiTurnConversation(t *testing.T) {
 	test := SetupChatIntegrationTest(t)
 	defer test.cleanup()
 
-	mockLLM := test.llmClient.(*MockLLMClientForIntegration)
-
 	sessionID := test.createSession(t, "多轮对话测试")
 
 	// 第一轮
-	mockLLM.SetResponse("欢迎！你要做什么？")
+	test.llmClient.SetResponse("欢迎！你要做什么？")
 	test.sendMessage(t, sessionID, "你好")
-	assert.Len(t, test.getMessages(t, sessionID), 2)
+	messages := test.getMessages(t, sessionID)
+	assert.Len(t, messages, 2)
 
 	// 第二轮
-	mockLLM.SetResponse("很好！继续探索吧。")
+	test.llmClient.SetResponse("很好！继续探索吧。")
 	test.sendMessage(t, sessionID, "我要探索地下城")
-	assert.Len(t, test.getMessages(t, sessionID), 4)
+	messages = test.getMessages(t, sessionID)
+	assert.Len(t, messages, 4)
 
 	// 第三轮
-	mockLLM.SetResponse("祝你好运！")
+	test.llmClient.SetResponse("祝你好运！")
 	test.sendMessage(t, sessionID, "再见")
-	assert.Len(t, test.getMessages(t, sessionID), 6)
+	messages = test.getMessages(t, sessionID)
+	assert.Len(t, messages, 6)
 }
 
 // TestChatIntegration_SessionNotFound 测试不存在的会话
@@ -145,7 +140,7 @@ func TestChatIntegration_SessionNotFound(t *testing.T) {
 	defer test.cleanup()
 
 	// 使用不存在的UUID
-	fakeSessionID := "550e8400-e29b-41d4-a716-446655449999"
+	fakeSessionID := uuid.New().String()
 	resp := test.sendMessage(t, fakeSessionID, "测试消息")
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -162,21 +157,19 @@ func TestChatIntegration_MultipleSessions(t *testing.T) {
 	test := SetupChatIntegrationTest(t)
 	defer test.cleanup()
 
-	mockLLM := test.llmClient.(*MockLLMClientForIntegration)
-
 	// 创建多个会话
 	session1 := test.createSession(t, "会话1")
 	session2 := test.createSession(t, "会话2")
 	session3 := test.createSession(t, "会话3")
 
 	// 向不同会话发送消息
-	mockLLM.SetResponse("响应1")
+	test.llmClient.SetResponse("响应1")
 	test.sendMessage(t, session1, "消息1")
 
-	mockLLM.SetResponse("响应2")
+	test.llmClient.SetResponse("响应2")
 	test.sendMessage(t, session2, "消息2")
 
-	mockLLM.SetResponse("响应3")
+	test.llmClient.SetResponse("响应3")
 	test.sendMessage(t, session3, "消息3")
 
 	// 验证每个会话的消息数
@@ -190,8 +183,7 @@ func TestChatIntegration_ConcurrentMessages(t *testing.T) {
 	test := SetupChatIntegrationTest(t)
 	defer test.cleanup()
 
-	mockLLM := test.llmClient.(*MockLLMClientForIntegration)
-	mockLLM.SetResponse("收到")
+	test.llmClient.SetResponse("收到")
 
 	sessionID := test.createSession(t, "并发测试")
 
@@ -211,24 +203,28 @@ func TestChatIntegration_ConcurrentMessages(t *testing.T) {
 		<-done
 	}
 
-	// 验证所有消息都已保存
+	// 验证所有消息都已保存（用户消息 + 助手响应）
 	messages := test.getMessages(t, sessionID)
-	assert.Len(t, messages, concurrency*2) // 每条消息包括用户和助手响应
+	assert.Len(t, messages, concurrency*2)
 }
 
 // MockLLMClientForIntegration 用于集成测试的Mock LLM客户端
 type MockLLMClientForIntegration struct {
-	responses map[string]string
 	defaultResponse string
+	mu              sync.Mutex
 }
 
 func (m *MockLLMClientForIntegration) SetResponse(response string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.defaultResponse = response
 }
 
 func (m *MockLLMClientForIntegration) ChatCompletion(ctx context.Context, req *llm.ChatCompletionRequest) (*llm.ChatCompletionResponse, error) {
-	// 返回设置的响应
+	m.mu.Lock()
 	response := m.defaultResponse
+	m.mu.Unlock()
+
 	if response == "" {
 		response = "默认响应"
 	}
@@ -256,7 +252,6 @@ func (m *MockLLMClientForIntegration) ChatCompletion(ctx context.Context, req *l
 }
 
 func (m *MockLLMClientForIntegration) StreamCompletion(ctx context.Context, req *llm.ChatCompletionRequest) (<-chan llm.StreamChunk, error) {
-	// 返回一个空 channel，表示流式响应未实现
 	ch := make(chan llm.StreamChunk)
 	close(ch)
 	return ch, nil
@@ -283,7 +278,7 @@ func (test *ChatIntegrationTest) sendMessage(t *testing.T, sessionID, message st
 	}
 	bodyJSON, _ := json.Marshal(reqBody)
 
-	url := fmt.Sprintf("%s/api/sessions/%s/chat", test.serverURL, sessionID)
+	url := fmt.Sprintf("%s/api/sessions/%s/chat", test.server.URL, sessionID)
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(bodyJSON))
 	require.NoError(t, err)
 
@@ -306,7 +301,7 @@ func (test *ChatIntegrationTest) getMessages(t *testing.T, sessionID string) []m
 	var messages []map[string]interface{}
 	for rows.Next() {
 		var id, role, content string
-		var playerID *string
+		var playerID sql.NullString
 		var createdAt time.Time
 
 		err = rows.Scan(&id, &role, &content, &playerID, &createdAt)
@@ -329,39 +324,17 @@ func (test *ChatIntegrationTest) getMessages(t *testing.T, sessionID string) []m
 // Helper functions
 
 func getTestDatabaseURL() string {
-	// 从环境变量读取数据库密码，如果没有则使用默认值
 	password := os.Getenv("TEST_DB_PASSWORD")
 	if password == "" {
-		password = "070831" // 默认密码
+		password = "070831"
 	}
 	return fmt.Sprintf("postgres://postgres:%s@localhost:5432/dnd_mcp_test?sslmode=disable", password)
 }
 
-func runTestMigrations(t *testing.T, db *sql.DB) {
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS sessions (
-			id UUID PRIMARY KEY,
-			version INTEGER NOT NULL DEFAULT 1,
-			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-			updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-			game_time VARCHAR(50),
-			location VARCHAR(255),
-			campaign_name VARCHAR(255) NOT NULL,
-			state JSONB,
-			deleted_at TIMESTAMP
-		)
-	`)
+func cleanupTestData(t *testing.T, db *sql.DB) {
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx, "DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE campaign_name LIKE '%测试%')")
 	require.NoError(t, err)
-
-	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS messages (
-			id UUID PRIMARY KEY,
-			session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-			role VARCHAR(50) NOT NULL,
-			content TEXT NOT NULL,
-			player_id UUID,
-			created_at TIMESTAMP NOT NULL DEFAULT NOW()
-		)
-	`)
+	_, err = db.ExecContext(ctx, "DELETE FROM sessions WHERE campaign_name LIKE '%测试%'")
 	require.NoError(t, err)
 }
