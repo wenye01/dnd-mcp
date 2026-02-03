@@ -1,67 +1,57 @@
+// Package models 提供领域模型定义
 package models
 
 import (
 	"time"
-
-	"github.com/google/uuid"
 )
 
-// Session 游戏会话
+// Session 会话模型
 type Session struct {
-	ID        uuid.UUID `json:"id" db:"id"`
-	Version   int       `json:"version" db:"version"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
-
-	// 游戏元数据
-	GameTime      string `json:"game_time" db:"game_time"`
-	Location      string `json:"location" db:"location"`
-	CampaignName  string `json:"campaign_name" db:"campaign_name"`
-
-	// 战斗状态
-	Combat *CombatState `json:"combat,omitempty"`
-
-	// 地图状态
-	Map *MapState `json:"map,omitempty"`
-
-	// 角色列表
-	Characters []*Character `json:"characters,omitempty"`
-
-	// 完整状态(用于存储到state字段)
-	State map[string]interface{} `json:"state,omitempty" db:"state"`
-}
-
-// CombatState 战斗状态
-type CombatState struct {
-	Active          bool     `json:"active"`
-	Round           int      `json:"round"`
-	CurrentTurn     string   `json:"current_turn"` // character_id
-	InitiativeOrder []string `json:"initiative_order"`
-}
-
-// MapState 地图状态
-type MapState struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Width    int    `json:"width"`
-	Height   int    `json:"height"`
-	GridSize int    `json:"grid_size"`
+	ID           string                 `json:"id"`
+	Name         string                 `json:"name"`
+	CreatorID    string                 `json:"creator_id"`
+	MCPServerURL string                 `json:"mcp_server_url"`
+	WebSocketKey string                 `json:"websocket_key"`
+	MaxPlayers   int                    `json:"max_players"`
+	Settings     map[string]interface{} `json:"settings"`
+	CreatedAt    time.Time              `json:"created_at"`
+	UpdatedAt    time.Time              `json:"updated_at"`
+	Status       string                 `json:"status"`
 }
 
 // NewSession 创建新会话
-func NewSession(campaignName string) *Session {
+func NewSession(name, creatorID, mcpServerURL string) *Session {
 	now := time.Now()
 	return &Session{
-		ID:           uuid.New(),
-		Version:      1,
+		Name:         name,
+		CreatorID:    creatorID,
+		MCPServerURL: mcpServerURL,
+		Status:       "active",
 		CreatedAt:    now,
 		UpdatedAt:    now,
-		CampaignName: campaignName,
-		GameTime:     "Morning",
-		Location:     "Unknown",
-		Combat:       nil,
-		Map:          nil,
-		Characters:   make([]*Character, 0),
-		State:        make(map[string]interface{}),
+		MaxPlayers:   4, // 默认最大4个玩家
+		Settings:     make(map[string]interface{}),
 	}
+}
+
+// IsActive 检查会话是否活跃
+func (s *Session) IsActive() bool {
+	return s.Status == "active"
+}
+
+// Archive 归档会话
+func (s *Session) Archive() {
+	s.Status = "archived"
+	s.UpdatedAt = time.Now()
+}
+
+// UpdateSettings 更新设置
+func (s *Session) UpdateSettings(settings map[string]interface{}) {
+	if s.Settings == nil {
+		s.Settings = make(map[string]interface{})
+	}
+	for k, v := range settings {
+		s.Settings[k] = v
+	}
+	s.UpdatedAt = time.Now()
 }

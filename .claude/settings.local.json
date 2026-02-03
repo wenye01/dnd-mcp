@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Format-Table -AutoSize)",
+      "Bash(go clean:*)",
+      "Bash(chmod:*)",
+      "Bash(go build:*)",
+      "Bash(go test:*)",
+      "Bash(psql:*)",
+      "Bash(start /B cmd /c \"set DATABASE_URL=postgres://postgres:070831@localhost:5432/dnd_mcp_test?sslmode=disable && set OPENAI_API_KEY=test-key && bin\\client.exe > server.log 2>&1\")",
+      "Bash(timeout:*)",
+      "Bash(nul:*)",
+      "Bash(curl:*)",
+      "Bash(start /B start_server.bat)",
+      "Bash(server_output.log)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(powershell:*)",
+      "Bash(cat:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd:*)",
+      "Bash(netstat:*)",
+      "Bash(mkdir:*)",
+      "Bash(go mod tidy:*)",
+      "Bash(./client.exe:*)",
+      "Bash(Select-String:*)",
+      "Bash(sc query:*)",
+      "Bash(dir \"C:\\Tools\\Redis-8.4.0-Windows-x64-msys2-with-Service\")",
+      "Bash(start /B cmd /c \"redis-server.exe redis.conf > redis.log 2>&1\")",
+      "Bash(dir:*)",
+      "Bash(set:*)",
+      "Bash(bin\\client.exe:*)",
+      "Bash(.\\bin\\client.exe:*)",
+      "Bash(go get:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

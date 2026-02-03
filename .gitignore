@@ -1,38 +1,24 @@
-# Binaries
-bin/
+# Binaries for programs and plugins
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+bin/
+dist/
 
-# Go build cache
+# Test binary, built with `go test -c`
 *.test
-*.test.exe
+
+# Output of the go coverage tool
 *.out
+coverage.html
+
+# Go workspace file
 go.work
 
 # Dependency directories
 vendor/
-
-# Test reports
-tests/reports/
-coverage.out
-coverage.html
-test_output.txt
-test_report.txt
-
-# Mock servers (test infrastructure)
-mock/
-
-# Test temporary files
-coverage_generation.txt
-coverage_percent.txt
-nul
-
-# Backup files
-*.backup
-*.bak
 
 # Environment variables
 .env
@@ -49,8 +35,12 @@ nul
 .DS_Store
 Thumbs.db
 
-# Logs
+# Log files
 *.log
 
-#
-.claude
+# Build output
+/build/
+
+# Temporary files
+tmp/
+temp/

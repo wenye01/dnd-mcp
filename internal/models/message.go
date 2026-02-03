@@ -1,3 +1,4 @@
+// Package models 提供领域模型定义
 package models
 
 import (
@@ -6,16 +7,15 @@ import (
 	"github.com/google/uuid"
 )
 
-// Message 对话消息
+// Message 消息模型
 type Message struct {
-	ID        uuid.UUID              `json:"id" db:"id"`
-	SessionID uuid.UUID              `json:"session_id" db:"session_id"`
-	Role      string                 `json:"role" db:"role"` // user|assistant|system|tool
-	Content   string                 `json:"content" db:"content"`
-	ToolCalls []ToolCall             `json:"tool_calls,omitempty" db:"tool_calls"`
-	PlayerID  string                 `json:"player_id,omitempty" db:"player_id"`
-	CreatedAt time.Time              `json:"created_at" db:"created_at"`
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	ID        string    `json:"id"`
+	SessionID string    `json:"session_id"`
+	Role      string    `json:"role"`
+	Content   string    `json:"content"`
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+	PlayerID  string    `json:"player_id,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // ToolCall 工具调用
@@ -26,14 +26,53 @@ type ToolCall struct {
 }
 
 // NewMessage 创建新消息
-func NewMessage(sessionID uuid.UUID, role, content string) *Message {
+func NewMessage(sessionID, role, content string) *Message {
 	return &Message{
-		ID:        uuid.New(),
+		ID:        uuid.New().String(),
 		SessionID: sessionID,
 		Role:      role,
 		Content:   content,
-		ToolCalls: make([]ToolCall, 0),
 		CreatedAt: time.Now(),
-		Metadata:  make(map[string]interface{}),
 	}
+}
+
+// NewUserMessage 创建用户消息
+func NewUserMessage(sessionID, content, playerID string) *Message {
+	return &Message{
+		SessionID: sessionID,
+		Role:      "user",
+		Content:   content,
+		PlayerID:  playerID,
+		CreatedAt: time.Now(),
+	}
+}
+
+// NewAssistantMessage 创建助手消息
+func NewAssistantMessage(sessionID, content string) *Message {
+	return &Message{
+		SessionID: sessionID,
+		Role:      "assistant",
+		Content:   content,
+		CreatedAt: time.Now(),
+	}
+}
+
+// NewSystemMessage 创建系统消息
+func NewSystemMessage(sessionID, content string) *Message {
+	return &Message{
+		SessionID: sessionID,
+		Role:      "system",
+		Content:   content,
+		CreatedAt: time.Now(),
+	}
+}
+
+// HasToolCalls 检查消息是否包含工具调用
+func (m *Message) HasToolCalls() bool {
+	return len(m.ToolCalls) > 0
+}
+
+// AddToolCall 添加工具调用
+func (m *Message) AddToolCall(toolCall ToolCall) {
+	m.ToolCalls = append(m.ToolCalls, toolCall)
 }

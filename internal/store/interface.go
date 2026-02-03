@@ -1,44 +1,45 @@
-// Package store 提供数据持久化接口
+// Package store 提供数据存储接口定义
 package store
 
 import (
 	"context"
+	"time"
+
 	"github.com/dnd-mcp/client/internal/models"
-	"github.com/google/uuid"
 )
 
 // SessionStore 会话存储接口
 type SessionStore interface {
-	// CreateSession 创建新会话
-	CreateSession(ctx context.Context, session *models.Session) error
+	// Create 创建会话
+	Create(ctx context.Context, session *models.Session) error
 
-	// GetSession 根据ID获取会话
-	GetSession(ctx context.Context, sessionID uuid.UUID) (*models.Session, error)
+	// Get 获取会话
+	Get(ctx context.Context, id string) (*models.Session, error)
 
-	// ListSessions 列出会话
-	ListSessions(ctx context.Context, limit, offset int) ([]*models.Session, error)
+	// List 列出所有会话
+	List(ctx context.Context) ([]*models.Session, error)
 
-	// UpdateSession 更新会话
-	UpdateSession(ctx context.Context, session *models.Session) error
+	// Update 更新会话
+	Update(ctx context.Context, session *models.Session) error
 
-	// DeleteSession 删除会话(软删除)
-	DeleteSession(ctx context.Context, sessionID uuid.UUID) error
+	// Delete 删除会话(软删除)
+	Delete(ctx context.Context, id string) error
 }
 
 // MessageStore 消息存储接口
 type MessageStore interface {
-	// CreateMessage 创建新消息
-	CreateMessage(ctx context.Context, message *models.Message) error
+	// Create 保存消息
+	Create(ctx context.Context, message *models.Message) error
 
-	// GetMessages 获取指定会话的消息列表
-	GetMessages(ctx context.Context, sessionID uuid.UUID, limit, offset int) ([]*models.Message, error)
+	// Get 获取消息
+	Get(ctx context.Context, sessionID, messageID string) (*models.Message, error)
 
-	// GetRecentMessages 获取最近的消息(用于上下文构建)
-	GetRecentMessages(ctx context.Context, sessionID uuid.UUID, limit int) ([]*models.Message, error)
-}
+	// List 获取会话消息列表
+	List(ctx context.Context, sessionID string, limit int) ([]*models.Message, error)
 
-// Store 组合存储接口
-type Store interface {
-	SessionStore
-	MessageStore
+	// ListByRole 按角色获取消息
+	ListByRole(ctx context.Context, sessionID, role string, limit int) ([]*models.Message, error)
+
+	// ListSince 按时间范围获取消息
+	ListSince(ctx context.Context, sessionID string, since time.Time, limit int) ([]*models.Message, error)
 }
