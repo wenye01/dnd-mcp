@@ -11,6 +11,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/dnd-mcp/client/internal/models"
 	"github.com/dnd-mcp/client/internal/store"
+	"github.com/dnd-mcp/client/internal/persistence"
 	"github.com/dnd-mcp/client/pkg/errors"
 )
 
@@ -180,3 +181,46 @@ func (m *messageStore) ListSince(ctx context.Context, sessionID string, since ti
 
 // 确保实现了接口
 var _ store.MessageStore = (*messageStore)(nil)
+var _ persistence.MessageWriter = (*messageStore)(nil)
+var _ persistence.MessageReader = (*messageStore)(nil)
+
+// BatchCreate 批量创建消息（实现 persistence.MessageWriter）
+func (m *messageStore) BatchCreate(ctx context.Context, messages []*models.Message) error {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	// 使用 Pipeline 批量操作
+	pipe := m.client.Client().Pipeline()
+
+	for _, message := range messages {
+		// 如果没有ID,生成一个
+		if message.ID == "" {
+			message.ID = uuid.New().String()
+		}
+
+		// 序列化消息
+		messageJSON, err := json.Marshal(message)
+		if err != nil {
+			return fmt.Errorf("序列化消息失败: %w", err)
+		}
+
+		// 使用时间戳(毫秒)作为 score
+		score := message.CreatedAt.UnixMilli()
+
+		// 保存到 Sorted Set
+		key := fmt.Sprintf("msg:%s", message.SessionID)
+		pipe.ZAdd(ctx, key, redis.Z{
+			Score:  float64(score),
+			Member: messageJSON,
+		})
+	}
+
+	// 执行 Pipeline
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("批量创建消息失败: %w", err)
+	}
+
+	return nil
+}

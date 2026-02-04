@@ -4,12 +4,141 @@
 
 - **版本**: v1.1
 - **创建日期**: 2025-02-03
-- **更新日期**: 2025-02-03
+- **更新日期**: 2025-02-04
 - **基于**: DND_MCP_架构设计_方案B修订.md
 - **设计范围**: MCP Client 组件详细设计
 - **主要更新**:
   - 添加持久化触发器设计（支持多种触发策略）
   - 简化 API 设计（删除分页、排序等复杂参数）
+  - **[2025-02-04] 添加简化架构实施说明**
+
+---
+
+## ⚠️ 重要：简化架构实施说明
+
+### 实施状态
+
+本文档定义了**完整的分层架构**（Handler → Service → Repository → Store → Models），作为系统的架构设计目标。
+
+然而，在实际开发中（任务三、四、五），为了**快速迭代和交付可运行的系统**，采用了**简化的架构实现**（Handler → Store → Models）。
+
+### 架构对比
+
+#### 设计文档定义的完整架构（目标架构）
+
+```
+Handler (HTTP 处理器)
+  ↓
+Service (业务逻辑层)
+  ├─ SessionService
+  ├─ ChatService
+  └─ OrchestratorService
+  ↓
+Repository (数据访问接口)
+  ├─ SessionRepository
+  └─ MessageRepository
+  ↓
+Store (存储实现)
+  ├─ RedisStore (主存储)
+  └─ PostgresStore (备份)
+  ↓
+Models (领域模型)
+```
+
+**目录结构**:
+```
+internal/
+├── api/handler/       # Handler 层
+├── service/           # Service 层（业务逻辑）
+│   ├── session.go
+│   ├── chat.go
+│   └── orchestrator/
+├── repository/        # Repository 接口层
+│   ├── session.go
+│   └── message.go
+├── store/             # Store 实现层
+│   ├── redis/
+│   └── postgres/
+└── models/            # 领域模型
+```
+
+#### 当前实现的简化架构（实际架构）
+
+```
+Handler (HTTP 处理器，包含部分业务逻辑)
+  ↓
+Store (存储实现，直接被 Handler 调用)
+  ├─ RedisStore
+  └─ PostgresStore
+  ↓
+Models (领域模型)
+```
+
+**目录结构**:
+```
+internal/
+├── api/handler/       # Handler 层（包含业务逻辑）
+├── store/             # Store 实现层
+│   └── redis/
+└── models/            # 领域模型
+```
+
+### 差异说明
+
+| 层次 | 设计文档要求 | 当前实现（任务三/四/五） |
+|------|-------------|----------------------|
+| **Handler** | ✅ 有，只负责 HTTP 层 | ✅ 有，包含业务逻辑 |
+| **Service** | ✅ 有，封装业务逻辑 | ❌ **缺失** |
+| **Repository** | ✅ 有，抽象数据访问 | ❌ **缺失** |
+| **Store** | ✅ 有，实现 Repository 接口 | ✅ 有，直接被 Handler 调用 |
+| **Models** | ✅ 有，最底层 | ✅ 有，最底层 |
+
+### 简化的原因
+
+1. **快速迭代**: 优先交付功能，快速验证需求
+2. **业务逻辑相对简单**: 当前阶段业务逻辑不复杂
+3. **单一存储实现**: 只使用 Redis，Repository 抽象价值有限
+4. **降低学习曲线**: 简化架构更易于理解和调试
+
+### 适用场景
+
+#### 当前简化架构适用于 ✅
+
+- 快速原型开发
+- 功能验证和演示
+- 个人项目或小型团队
+- MVP（最小可行产品）
+
+#### 完整架构适用于 🎯
+
+- 生产环境部署
+- 长期维护的项目
+- 团队协作开发
+- 需要高可维护性
+- 多种存储实现
+
+### 改进计划
+
+#### 阶段1：保持现状（当前 - 任务五）
+
+- ✅ 保持简化架构
+- ✅ 完成功能实现
+- ✅ 在文档中说明简化决策
+
+#### 阶段2：逐步补充（任务六/七）
+
+- ⚠️ 评估业务逻辑复杂度
+- ⚠️ 如果 LLM/MCP 集成后逻辑变复杂，添加 Service 层
+- ⚠️ 如果需要多种存储，添加 Repository 接口
+
+#### 阶段3：完整重构（生产前，可选）
+
+- 🎯 补充 Service 层
+- 🎯 补充 Repository 接口层
+- 🎯 符合设计文档的完整架构
+- 🎯 提高可测试性和可维护性
+
+**详细说明**: 参见 `doc/架构简化说明.md`
 
 ---
 
@@ -2396,49 +2525,81 @@ LOG_FORMAT=json
 LOG_OUTPUT=stdout
 ```
 
-### 9.2 Docker Compose
+### 9.2 本地部署
 
-```yaml
-version: '3.8'
+#### Windows 环境
 
-services:
-  dnd-client:
-    build: .
-    ports:
-      - "8080:8080"
-    environment:
-      - APP_ENV=production
-      - REDIS_HOST=redis:6379
-      - POSTGRES_HOST=postgres:5432
-    depends_on:
-      - redis
-      - postgres
-    restart: unless-stopped
+1. 安装依赖:
+   - Go 1.21+
+   - Redis 7.0+ (推荐: https://github.com/tporadowski/redis/releases)
+   - PostgreSQL 15+ (推荐: https://www.enterprisedb.com/downloads/postgres-postgresql-downloads)
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    command: redis-server --appendonly yes
-    restart: unless-stopped
+2. 启动服务:
 
-  postgres:
-    image: postgres:15-alpine
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=dnd
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=dnd_client
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    restart: unless-stopped
+```powershell
+# 启动 Redis
+net start Redis
 
-volumes:
-  redis-data:
-  postgres-data:
+# 启动 PostgreSQL
+net start postgresql-x64-15
+```
+
+3. 配置环境变量:
+
+```powershell
+$env:REDIS_HOST="localhost:6379"
+$env:POSTGRES_HOST="localhost:5432"
+$env:POSTGRES_USER="dnd"
+$env:POSTGRES_PASSWORD="password"
+$env:POSTGRES_DBNAME="dnd_client"
+```
+
+4. 运行应用:
+
+```powershell
+.\bin\dnd-client.exe
+```
+
+#### Linux/Mac 环境
+
+1. 安装依赖:
+
+```bash
+# Ubuntu/Debian
+sudo apt update
+sudo apt install golang redis-server postgresql
+
+# macOS
+brew install go redis postgresql
+```
+
+2. 启动服务:
+
+```bash
+# 启动 Redis
+sudo systemctl start redis
+# 或
+redis-server
+
+# 启动 PostgreSQL
+sudo systemctl start postgresql
+```
+
+3. 配置数据库:
+
+```bash
+# 创建用户和数据库
+sudo -u postgres psql
+CREATE USER dnd WITH PASSWORD 'password';
+CREATE DATABASE dnd_client OWNER dnd;
+GRANT ALL PRIVILEGES ON DATABASE dnd_client TO dnd;
+\q
+```
+
+4. 运行应用:
+
+```bash
+./bin/dnd-client
 ```
 
 ---

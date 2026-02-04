@@ -34,9 +34,9 @@
 
 ## 任务拆解
 
-### 任务1：项目脚手架 + Redis 基础存储
+### 任务1：项目脚手架 + HTTP Server + Redis 基础存储
 
-**目标**：搭建项目基础架构，实现 Redis 存储会话和消息
+**目标**：搭建项目基础架构，实现 HTTP Server 和 Redis 存储会话和消息
 
 **需求清单**：
 
@@ -44,22 +44,32 @@
 2. 需求1.2：Redis 连接和配置管理
 3. 需求1.3：Redis 存储会话
 4. 需求1.4：Redis 存储消息
-5. 需求1.5：命令行工具测试
+5. 需求1.5：HTTP Server 和基础 API
+6. 需求1.6：API 端到端测试（使用 curl）
 
 **可演示功能**：
 
 ```bash
+# 启动 HTTP Server
+./bin/dnd-server
+
+# 使用 curl 测试 API（像前端一样调用）
+
 # 创建会话
-./bin/dnd-client session create --name "测试会话" --creator "user-123"
+curl -X POST http://localhost:8080/api/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"name":"测试会话","creator_id":"user-123","mcp_server_url":"http://localhost:9000"}'
 
 # 查看会话
-./bin/dnd-client session get <session-id>
+curl http://localhost:8080/api/sessions/{session-id}
 
 # 保存消息
-./bin/dnd-client message save --session <session-id> --content "你好"
+curl -X POST http://localhost:8080/api/sessions/{session-id}/messages \
+  -H "Content-Type: application/json" \
+  -d '{"role":"user","content":"你好","player_id":"player-123"}'
 
 # 查看消息
-./bin/dnd-client message list --session <session-id>
+curl http://localhost:8080/api/sessions/{session-id}/messages
 ```
 
 **测试用例**：
@@ -70,18 +80,20 @@
 | 1.2 | Redis 连接成功，Ping 返回 PONG | 集成测试  |
 | 1.3 | 创建会话后能从 Redis 读取        | 集成测试  |
 | 1.4 | 保存消息后能从 Redis 读取        | 集成测试  |
-| 1.5 | CLI 命令执行正确              | 端到端测试 |
+| 1.5 | HTTP 服务器正常启动和监听          | 集成测试  |
+| 1.6 | curl 调用 API 返回正确结果      | 端到端测试 |
 
 **验收标准**：
 
 - ✅ 项目可以编译运行
+- ✅ HTTP Server 正常监听 8080 端口
 - ✅ 使用 Redis 存储会话和消息
-- ✅ 提供 CLI 工具测试所有功能
+- ✅ 提供 REST API 测试所有功能
 - ✅ 测试覆盖率 > 80%
 
 **依赖**：
 
-- 外部：Redis（使用 Docker 启动）
+- 外部：Redis（本地服务或 Docker）
 - 无其他依赖
 
 ---
@@ -97,19 +109,38 @@
 3. 需求2.3：从 Redis 备份消息到 PostgreSQL
 4. 需求2.4：从 PostgreSQL 恢复会话到 Redis
 5. 需求2.5：从 PostgreSQL 恢复消息到 Redis
-6. 需求2.6：命令行工具测试持久化
+6. 需求2.6：持久化管理 API（手动触发备份/恢复）
+7. 需求2.7：API 端到端测试（使用 curl）
 
 **可演示功能**：
 
 ```bash
-# 备份到 PostgreSQL
-./bin/dnd-client backup --all
+# 通过 API 触发备份
+curl -X POST http://localhost:8080/api/system/persistence/backup
 
-# 从 PostgreSQL 恢复
-./bin/dnd-client restore --all
+# 返回
+{
+  "status": "success",
+  "stats": {
+    "sessions_backed_up": 10,
+    "messages_backed_up": 150,
+    "duration_seconds": 0.52
+  }
+}
 
-# 查看备份记录
-./bin/dnd-client backup list
+# 通过 API 触发恢复
+curl -X POST http://localhost:8080/api/system/persistence/restore
+
+# 查看持久化状态
+curl http://localhost:8080/api/system/persistence/status
+
+# 返回
+{
+  "last_backup_time": "2025-02-03T10:30:00Z",
+  "last_restore_time": "2025-02-03T11:00:00Z",
+  "backup_count": 5,
+  "status": "healthy"
+}
 ```
 
 **测试用例**：
@@ -121,18 +152,19 @@
 | 2.3 | 消息正确备份到 PostgreSQL    | 集成测试  |
 | 2.4 | 会话从 PostgreSQL 正确恢复   | 集成测试  |
 | 2.5 | 消息从 PostgreSQL 正确恢复   | 集成测试  |
-| 2.6 | CLI 命令执行正确            | 端到端测试 |
+| 2.6 | API 返回正确的备份/恢复状态      | HTTP 测试 |
+| 2.7 | curl 调用 API 验证数据一致性    | 端到端测试 |
 
 **验收标准**：
 
 - ✅ 数据库表结构正确创建
 - ✅ 可以备份和恢复会话、消息
-- ✅ 提供命令行工具测试
+- ✅ 提供 REST API 进行持久化管理
 - ✅ 测试覆盖率 > 80%
 
 **依赖**：
 
-- 外部：Redis、PostgreSQL（使用 Docker 启动）
+- 外部：Redis、PostgreSQL（本地服务）
 - 前置任务：任务1
 
 ---
@@ -153,14 +185,26 @@
 **可演示功能**：
 
 ```bash
-# 启动服务器
-./bin/dnd-client server start
+# 启动服务器（任务1已完成）
+./bin/dnd-server
 
 # 测试 API
 curl http://localhost:8080/api/sessions
+
+# 创建会话
 curl -X POST http://localhost:8080/api/sessions \
   -H "Content-Type: application/json" \
   -d '{"name":"测试会话","creator_id":"user-123","mcp_server_url":"http://localhost:9000"}'
+
+# 返回
+{
+  "id": "session-uuid-xxx",
+  "name": "测试会话",
+  "creator_id": "user-123",
+  "mcp_server_url": "http://localhost:9000",
+  "status": "active",
+  "created_at": "2025-02-03T10:00:00Z"
+}
 ```
 
 **测试用例**：
@@ -315,17 +359,26 @@ websocat ws://localhost:8080/ws/sessions/{id}?key={ws-key}
 **可演示功能**：
 
 ```bash
-# 使用真实 LLM
-LLM_PROVIDER=openai LLM_API_KEY=sk-xxx ./bin/dnd-client server start
+# 使用真实 LLM（配置文件或环境变量）
+# config.yaml: llm.provider: openai, llm.api_key: sk-xxx
+./bin/dnd-server
 
-# 使用 Mock LLM
-LLM_PROVIDER=mock ./bin/dnd-client server start
+# 使用 Mock LLM（默认）
+# config.yaml: llm.provider: mock
+./bin/dnd-server
 
 # 发送消息
 curl -X POST http://localhost:8080/api/sessions/{id}/chat \
+  -H "Content-Type: application/json" \
   -d '{"content":"告诉我一个故事"}'
 
 # 返回真实 LLM 响应
+{
+  "id": "msg-xxx",
+  "role": "assistant",
+  "content": "很久以前，在一个遥远的王国...",
+  "created_at": "2025-02-03T10:00:00Z"
+}
 ```
 
 **测试用例**：
@@ -341,7 +394,7 @@ curl -X POST http://localhost:8080/api/sessions/{id}/chat \
 **Mock 策略**：
 
 - 提供 Mock LLM 实现，返回预设响应
-- 通过环境变量 `LLM_PROVIDER=mock` 切换
+- 通过配置文件 `llm.provider: mock` 切换
 
 **验收标准**：
 
@@ -373,14 +426,17 @@ curl -X POST http://localhost:8080/api/sessions/{id}/chat \
 **可演示功能**：
 
 ```bash
-# 使用真实 MCP Server
-./bin/dnd-client server start --mcp-url http://localhost:9000
+# 使用真实 MCP Server（配置文件）
+# config.yaml: mcp.server_url: http://localhost:9000
+./bin/dnd-server
 
 # 使用 Mock MCP Server
-./bin/dnd-client server start --mcp-url mock://
+# config.yaml: mcp.server_url: mock://
+./bin/dnd-server
 
 # 调用工具
 curl -X POST http://localhost:8080/api/sessions/{id}/chat \
+  -H "Content-Type: application/json" \
   -d '{"content":"投掷骰子"}'
 
 # LLM 决定调用 roll_dice 工具
@@ -446,10 +502,10 @@ persistence:
     - type: message
       threshold: 100
 
-# 启动服务
-./bin/dnd-client server start --config config.yaml
+# 启动服务（加载配置）
+./bin/dnd-server --config config.yaml
 
-# 手动触发持久化
+# 手动触发持久化（通过 API）
 curl -X POST http://localhost:8080/api/system/persistence/trigger
 
 # 查看持久化状态

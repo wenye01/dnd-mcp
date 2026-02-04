@@ -27,4 +27,8 @@ func init() {
 	// 添加子命令
 	rootCmd.AddCommand(sessionCmd)
 	rootCmd.AddCommand(messageCmd)
+	rootCmd.AddCommand(migrateCmd)
+	rootCmd.AddCommand(backupCmd)
+	rootCmd.AddCommand(restoreCmd)
+	rootCmd.AddCommand(serverCmd)
 }

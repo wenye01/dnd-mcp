@@ -17,6 +17,9 @@ var (
 	// ErrInvalidArgument 无效参数
 	ErrInvalidArgument = errors.New("invalid argument")
 
+	// ErrInvalidMaxPlayers 无效的玩家数量
+	ErrInvalidMaxPlayers = errors.New("max_players must be between 1 and 10")
+
 	// ErrRedisConnection Redis 连接失败
 	ErrRedisConnection = errors.New("redis connection failed")
 

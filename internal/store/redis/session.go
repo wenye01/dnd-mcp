@@ -9,7 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/dnd-mcp/client/internal/models"
-	"github.com/dnd-mcp/client/internal/store"
+	"github.com/dnd-mcp/client/internal/repository"
+	"github.com/dnd-mcp/client/internal/persistence"
 	"github.com/dnd-mcp/client/pkg/errors"
 )
 
@@ -18,8 +19,12 @@ type sessionStore struct {
 	client Client
 }
 
+// 确保 sessionStore 实现了 repository.SessionRepository 接口
+var _ repository.SessionRepository = (*sessionStore)(nil)
+
 // NewSessionStore 创建会话存储实例
-func NewSessionStore(client Client) store.SessionStore {
+// 返回 repository.SessionRepository 接口类型
+func NewSessionStore(client Client) repository.SessionRepository {
 	return &sessionStore{client: client}
 }
 
@@ -226,4 +231,63 @@ func (s *sessionStore) parseSession(data map[string]string) (*models.Session, er
 }
 
 // 确保实现了接口
-var _ store.SessionStore = (*sessionStore)(nil)
+var _ repository.SessionRepository = (*sessionStore)(nil)
+var _ persistence.SessionWriter = (*sessionStore)(nil)
+var _ persistence.SessionReader = (*sessionStore)(nil)
+
+// BatchCreate 批量创建会话（实现 persistence.SessionWriter）
+func (s *sessionStore) BatchCreate(ctx context.Context, sessions []*models.Session) error {
+	if len(sessions) == 0 {
+		return nil
+	}
+
+	// 使用 Pipeline 批量操作
+	pipe := s.client.Client().Pipeline()
+
+	for _, session := range sessions {
+		// 如果没有ID,生成一个
+		if session.ID == "" {
+			session.ID = uuid.New().String()
+		}
+
+		// 序列化 settings
+		settingsJSON, err := json.Marshal(session.Settings)
+		if err != nil {
+			return fmt.Errorf("序列化 settings 失败: %w", err)
+		}
+
+		// 保存会话元数据到 Hash
+		sessionKey := fmt.Sprintf("session:%s", session.ID)
+		pipe.HSet(ctx, sessionKey, map[string]interface{}{
+			"id":             session.ID,
+			"name":           session.Name,
+			"creator_id":     session.CreatorID,
+			"mcp_server_url": session.MCPServerURL,
+			"websocket_key":  session.WebSocketKey,
+			"max_players":    session.MaxPlayers,
+			"settings":       settingsJSON,
+			"created_at":     session.CreatedAt.UTC().Format(time.RFC3339),
+			"updated_at":     session.UpdatedAt.UTC().Format(time.RFC3339),
+			"status":         session.Status,
+		})
+
+		// 添加到会话索引
+		pipe.SAdd(ctx, "sessions:all", session.ID)
+	}
+
+	// 执行 Pipeline
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("批量创建会话失败: %w", err)
+	}
+
+	return nil
+}
+
+// ListActive 列出活跃会话（实现 persistence.SessionReader）
+// 在 Redis 中，所有在 sessions:all 集合中的都是活跃会话
+func (s *sessionStore) ListActive(ctx context.Context) ([]*models.Session, error) {
+	// 目前 Redis 没有软删除机制，ListActive 和 List 行为一致
+	// 如果将来需要软删除，可以在 session hash 中添加 deleted_at 字段
+	return s.List(ctx)
+}

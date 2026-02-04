@@ -16,6 +16,7 @@ type Session struct {
 	Settings     map[string]interface{} `json:"settings"`
 	CreatedAt    time.Time              `json:"created_at"`
 	UpdatedAt    time.Time              `json:"updated_at"`
+	DeletedAt    time.Time              `json:"deleted_at,omitempty"` // 软删除时间
 	Status       string                 `json:"status"`
 }
 
