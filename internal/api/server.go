@@ -11,6 +11,7 @@ import (
 	"github.com/dnd-mcp/client/internal/api/handler"
 	"github.com/dnd-mcp/client/internal/api/middleware"
 	"github.com/dnd-mcp/client/internal/llm"
+	"github.com/dnd-mcp/client/internal/mcp"
 	"github.com/dnd-mcp/client/internal/service"
 	"github.com/dnd-mcp/client/internal/store"
 	"github.com/dnd-mcp/client/internal/ws"
@@ -20,14 +21,17 @@ import (
 
 // Server HTTP 服务器
 type Server struct {
-	config         *config.Config
-	httpServer     *http.Server
-	router         *gin.Engine
-	sessionService *service.SessionService
-	sessionStore   store.SessionStore
-	messageStore   store.MessageStore
-	llmClient      llm.LLMClient
-	hub            *ws.Hub
+	config          *config.Config
+	httpServer      *http.Server
+	router          *gin.Engine
+	sessionService  *service.SessionService
+	sessionStore    store.SessionStore
+	messageStore    store.MessageStore
+	llmClient       llm.LLMClient
+	mcpClient       mcp.MCPClient
+	contextBuilder  *service.ContextBuilder
+	hub             *ws.Hub
+	systemHandler   *handler.SystemHandler
 }
 
 // NewServer 创建 HTTP 服务器
@@ -37,7 +41,10 @@ func NewServer(
 	sessionStore store.SessionStore,
 	messageStore store.MessageStore,
 	llmClient llm.LLMClient,
+	mcpClient mcp.MCPClient,
+	contextBuilder *service.ContextBuilder,
 	hub *ws.Hub,
+	systemHandler *handler.SystemHandler,
 ) *Server {
 	// 设置 Gin 模式
 	if cfg.Log.Level == "debug" {
@@ -55,7 +62,10 @@ func NewServer(
 		sessionStore:   sessionStore,
 		messageStore:   messageStore,
 		llmClient:      llmClient,
+		mcpClient:      mcpClient,
+		contextBuilder: contextBuilder,
 		hub:            hub,
+		systemHandler:  systemHandler,
 	}
 
 	// 设置中间件
@@ -84,7 +94,7 @@ func (s *Server) setupRoutes() {
 	})
 
 	// 创建消息处理器
-	messageHandler := handler.NewMessageHandler(s.messageStore, s.sessionStore, s.llmClient)
+	messageHandler := handler.NewMessageHandler(s.messageStore, s.sessionStore, s.llmClient, s.mcpClient, s.contextBuilder, s.hub)
 
 	// 创建 WebSocket 处理器
 	wsHandler := handler.NewWSHandler(s.hub, s.sessionStore)
@@ -110,6 +120,12 @@ func (s *Server) setupRoutes() {
 
 			// WebSocket 广播测试路由（仅用于测试）
 			sessions.POST("/:id/broadcast", wsHandler.BroadcastMessage)
+		}
+
+		// 系统路由（任务八：持久化触发器）
+		system := api.Group("/system")
+		{
+			system.POST("/persistence/trigger", s.systemHandler.TriggerPersistence)
 		}
 	}
 

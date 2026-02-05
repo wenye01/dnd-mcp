@@ -17,6 +17,8 @@ type Config struct {
 	Postgres PostgresConfig `mapstructure:"postgres"`
 	Log      LogConfig      `mapstructure:"log"`
 	HTTP     HTTPConfig     `mapstructure:"http"`
+	LLM      LLMConfig      `mapstructure:"llm"`
+	MCP      MCPConfig      `mapstructure:"mcp"`
 }
 
 // RedisConfig Redis 配置
@@ -53,8 +55,24 @@ type PostgresConfig struct {
 	DBName          string `mapstructure:"dbname" env:"POSTGRES_DBNAME" default:"dnd_client"`
 	SSLMode         string `mapstructure:"sslmode" env:"POSTGRES_SSLMODE" default:"disable"`
 	PoolSize        int    `mapstructure:"pool_size" env:"POSTGRES_POOL_SIZE" default:"5"`
-	MaxConnLifetime int    `mapstructure:"max_conn_lifetime" env:"POSTGRES_MAX_CONN_LIFETIME" default:"3600"`  // seconds
+	MaxConnLifetime int    `mapstructure:"max_conn_lifetime" env:"POSTGRES_MAX_CONN_LIFETIME" default:"3600"` // seconds
 	MaxConnIdleTime int    `mapstructure:"max_conn_idletime" env:"POSTGRES_MAX_CONN_IDLETIME" default:"1800"` // seconds
+}
+
+// LLMConfig LLM 配置
+type LLMConfig struct {
+	Provider    string  `mapstructure:"provider" env:"LLM_PROVIDER" default:"mock"`
+	APIKey      string  `mapstructure:"api_key" env:"LLM_API_KEY" default:""`
+	Model       string  `mapstructure:"model" env:"LLM_MODEL" default:"gpt-4"`
+	MaxTokens   int     `mapstructure:"max_tokens" env:"LLM_MAX_TOKENS" default:"4096"`
+	Temperature float64 `mapstructure:"temperature" env:"LLM_TEMPERATURE" default:"0.7"`
+	Timeout     int     `mapstructure:"timeout" env:"LLM_TIMEOUT" default:"30"` // seconds
+}
+
+// MCPConfig MCP 配置
+type MCPConfig struct {
+	ServerURL string `mapstructure:"server_url" env:"MCP_SERVER_URL" default:"mock://"` // mock:// or http://...
+	Timeout   int    `mapstructure:"timeout" env:"MCP_TIMEOUT" default:"30"`             // seconds
 }
 
 // Load 从环境变量和.env文件加载配置
@@ -93,6 +111,18 @@ func Load() (*Config, error) {
 			WriteTimeout:    getEnvInt("HTTP_WRITE_TIMEOUT", 30),
 			ShutdownTimeout: getEnvInt("HTTP_SHUTDOWN_TIMEOUT", 10),
 			EnableCORS:      getEnvBool("HTTP_ENABLE_CORS", true),
+		},
+		LLM: LLMConfig{
+			Provider:    getEnv("LLM_PROVIDER", "mock"),
+			APIKey:      getEnv("LLM_API_KEY", ""),
+			Model:       getEnv("LLM_MODEL", "gpt-4"),
+			MaxTokens:   getEnvInt("LLM_MAX_TOKENS", 4096),
+			Temperature: getEnvFloat64("LLM_TEMPERATURE", 0.7),
+			Timeout:     getEnvInt("LLM_TIMEOUT", 30),
+		},
+		MCP: MCPConfig{
+			ServerURL: getEnv("MCP_SERVER_URL", "mock://"),
+			Timeout:   getEnvInt("MCP_TIMEOUT", 30),
 		},
 	}
 
@@ -166,6 +196,36 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("postgres max conn idletime 必须大于 0")
 	}
 
+	// 验证 LLM 配置
+	if c.LLM.Provider != "mock" && c.LLM.Provider != "openai" {
+		return fmt.Errorf("无效的 LLM provider: %s", c.LLM.Provider)
+	}
+
+	if c.LLM.Provider == "openai" && c.LLM.APIKey == "" {
+		return fmt.Errorf("OpenAI API key 不能为空")
+	}
+
+	if c.LLM.MaxTokens <= 0 {
+		return fmt.Errorf("LLM max tokens 必须大于 0")
+	}
+
+	if c.LLM.Temperature < 0 || c.LLM.Temperature > 2 {
+		return fmt.Errorf("LLM temperature 必须在 0-2 范围内")
+	}
+
+	if c.LLM.Timeout <= 0 {
+		return fmt.Errorf("LLM timeout 必须大于 0")
+	}
+
+	// 验证 MCP 配置
+	if c.MCP.ServerURL == "" {
+		return fmt.Errorf("MCP server URL 不能为空")
+	}
+
+	if c.MCP.Timeout <= 0 {
+		return fmt.Errorf("MCP timeout 必须大于 0")
+	}
+
 	return nil
 }
 
@@ -192,6 +252,16 @@ func getEnvBool(key string, defaultValue bool) bool {
 	if value := os.Getenv(key); value != "" {
 		if boolVal, err := strconv.ParseBool(value); err == nil {
 			return boolVal
+		}
+	}
+	return defaultValue
+}
+
+// getEnvFloat64 获取浮点数类型的环境变量,如果不存在或转换失败则返回默认值
+func getEnvFloat64(key string, defaultValue float64) float64 {
+	if value := os.Getenv(key); value != "" {
+		if floatVal, err := strconv.ParseFloat(value, 64); err == nil {
+			return floatVal
 		}
 	}
 	return defaultValue

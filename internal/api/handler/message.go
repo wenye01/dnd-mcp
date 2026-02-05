@@ -2,6 +2,8 @@
 package handler
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -9,23 +11,39 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/dnd-mcp/client/internal/llm"
+	"github.com/dnd-mcp/client/internal/mcp"
 	"github.com/dnd-mcp/client/internal/models"
+	"github.com/dnd-mcp/client/internal/service"
 	"github.com/dnd-mcp/client/internal/store"
+	"github.com/dnd-mcp/client/internal/ws"
 )
 
 // MessageHandler 消息处理器
 type MessageHandler struct {
-	messageStore store.MessageStore
-	sessionStore store.SessionStore
-	llmClient    llm.LLMClient
+	messageStore   store.MessageStore
+	sessionStore   store.SessionStore
+	llmClient      llm.LLMClient
+	mcpClient      mcp.MCPClient
+	contextBuilder *service.ContextBuilder
+	wsHub          *ws.Hub
 }
 
 // NewMessageHandler 创建消息处理器
-func NewMessageHandler(messageStore store.MessageStore, sessionStore store.SessionStore, llmClient llm.LLMClient) *MessageHandler {
+func NewMessageHandler(
+	messageStore store.MessageStore,
+	sessionStore store.SessionStore,
+	llmClient llm.LLMClient,
+	mcpClient mcp.MCPClient,
+	contextBuilder *service.ContextBuilder,
+	wsHub *ws.Hub,
+) *MessageHandler {
 	return &MessageHandler{
-		messageStore: messageStore,
-		sessionStore: sessionStore,
-		llmClient:    llmClient,
+		messageStore:   messageStore,
+		sessionStore:   sessionStore,
+		llmClient:      llmClient,
+		mcpClient:      mcpClient,
+		contextBuilder: contextBuilder,
+		wsHub:          wsHub,
 	}
 }
 
@@ -53,7 +71,7 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 		return
 	}
 
-	// 保存用户消息
+	// 1. 保存用户消息
 	userMessage := &models.Message{
 		ID:        uuid.New().String(),
 		SessionID: sessionID,
@@ -67,21 +85,44 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 		return
 	}
 
-	// 调用 LLM
+	// 2. 构建对话上下文（包含历史消息）
+	messages, err := h.contextBuilder.BuildContext(c.Request.Context(), sessionID, req.Content)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "构建对话上下文失败"}})
+		return
+	}
+
+	// 3. 调用 LLM
 	llmResp, err := h.llmClient.Chat(c.Request.Context(), &llm.ChatRequest{
-		Messages: []llm.Message{{Role: "user", Content: req.Content}},
+		Messages:    messages,
+		Temperature: 0.7,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "LLM_ERROR", "message": "LLM 调用失败: " + err.Error()}})
 		return
 	}
 
-	// 保存助手消息
+	// 4. 检查响应类型
+	if len(llmResp.Choices) == 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "LLM_ERROR", "message": "LLM 返回空响应"}})
+		return
+	}
+
+	choice := llmResp.Choices[0]
+
+	// 5. 判断是否有 tool_calls
+	if choice.FinishReason == "tool_calls" && len(choice.Message.ToolCalls) > 0 {
+		// 处理工具调用
+		h.handleToolCalls(c, sessionID, choice.Message.ToolCalls, req.Content)
+		return
+	}
+
+	// 6. 保存助手消息（纯文本响应）
 	assistantMessage := &models.Message{
 		ID:        uuid.New().String(),
 		SessionID: sessionID,
-		Role:      llmResp.Message.Role,
-		Content:   llmResp.Message.Content,
+		Role:      choice.Message.Role,
+		Content:   choice.Message.Content,
 		CreatedAt: time.Now(),
 	}
 	if err := h.messageStore.Create(c.Request.Context(), assistantMessage); err != nil {
@@ -89,7 +130,141 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 		return
 	}
 
+	// 7. 返回助手响应
 	c.JSON(http.StatusOK, assistantMessage)
+}
+
+// handleToolCalls 处理工具调用
+func (h *MessageHandler) handleToolCalls(c *gin.Context, sessionID string, toolCalls []llm.ToolCall, originalUserMessage string) {
+	ctx := c.Request.Context()
+
+	// 1. 保存 assistant 消息（包含 tool_calls）
+	assistantMsg := &models.Message{
+		ID:        uuid.New().String(),
+		SessionID: sessionID,
+		Role:      "assistant",
+		Content:   "",
+		ToolCalls: convertLLMToolCalls(toolCalls),
+		CreatedAt: time.Now(),
+	}
+
+	if err := h.messageStore.Create(ctx, assistantMsg); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "保存工具调用消息失败"}})
+		return
+	}
+
+	// 2. 执行所有工具调用
+	toolResults := make([]map[string]interface{}, len(toolCalls))
+	for i, toolCall := range toolCalls {
+		// 解析 arguments
+		var args map[string]interface{}
+		json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
+
+		// 调用 MCP Server
+		result, err := h.mcpClient.CallTool(ctx, sessionID, toolCall.Function.Name, args)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": gin.H{
+					"code":    "TOOL_EXECUTION_ERROR",
+					"message": fmt.Sprintf("工具调用失败: %s", err.Error()),
+				},
+			})
+			return
+		}
+
+		toolResults[i] = result
+	}
+
+	// 3. 保存 tool 响应消息
+	for i, toolCall := range toolCalls {
+		toolMsg := &models.Message{
+			ID:        uuid.New().String(),
+			SessionID: sessionID,
+			Role:      "tool",
+			Content:   fmt.Sprintf("工具 %s 执行结果: %+v", toolCall.Function.Name, toolResults[i]),
+			CreatedAt: time.Now(),
+		}
+
+		if err := h.messageStore.Create(ctx, toolMsg); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "保存工具响应失败"}})
+			return
+		}
+	}
+
+	// 4. 重新构建上下文（包含工具调用和结果）
+	messages, err := h.contextBuilder.BuildContext(ctx, sessionID, originalUserMessage)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "构建上下文失败"}})
+		return
+	}
+
+	// 添加 tool_calls 消息
+	messages = append(messages, llm.Message{
+		Role:      "assistant",
+		Content:   "",
+		ToolCalls: toolCalls,
+	})
+
+	// 添加 tool 响应消息
+	for i, result := range toolResults {
+		messages = append(messages, llm.Message{
+			Role:       "tool",
+			Content:    fmt.Sprintf("%+v", result),
+			ToolCallID: toolCalls[i].ID,
+		})
+	}
+
+	// 5. 继续调用 LLM（传递工具结果）
+	followupReq := &llm.ChatRequest{
+		Model:       "gpt-4",
+		Messages:    messages,
+		Temperature: 0.7,
+	}
+
+	followupResp, err := h.llmClient.Chat(ctx, followupReq)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "LLM_ERROR", "message": "LLM 后续调用失败"}})
+		return
+	}
+
+	// 6. 保存最终助手响应
+	if len(followupResp.Choices) == 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "LLM_ERROR", "message": "LLM 返回空响应"}})
+		return
+	}
+
+	finalMsg := &models.Message{
+		ID:        uuid.New().String(),
+		SessionID: sessionID,
+		Role:      followupResp.Choices[0].Message.Role,
+		Content:   followupResp.Choices[0].Message.Content,
+		CreatedAt: time.Now(),
+	}
+
+	if err := h.messageStore.Create(ctx, finalMsg); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "保存最终响应失败"}})
+		return
+	}
+
+	// 7. 返回最终响应
+	c.JSON(http.StatusOK, finalMsg)
+}
+
+// convertLLMToolCalls 转换 LLM tool_calls 到模型
+func convertLLMToolCalls(llmToolCalls []llm.ToolCall) []models.ToolCall {
+	toolCalls := make([]models.ToolCall, len(llmToolCalls))
+	for i, tc := range llmToolCalls {
+		// 解析 arguments JSON string
+		var args map[string]interface{}
+		json.Unmarshal([]byte(tc.Function.Arguments), &args)
+
+		toolCalls[i] = models.ToolCall{
+			ID:        tc.ID,
+			Name:      tc.Function.Name,
+			Arguments: args,
+		}
+	}
+	return toolCalls
 }
 
 // GetMessages 获取消息历史
