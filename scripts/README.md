@@ -8,6 +8,12 @@
 # 运行完整测试套件 (推荐)
 .\scripts\test-all.ps1
 
+# 从全新环境运行测试 (单元测试 + 集成测试)
+.\scripts\test-fresh.ps1
+
+# 运行端到端测试 (会自动启动服务器)
+.\scripts\test-e2e.ps1
+
 # 设置开发环境
 .\scripts\dev.ps1
 
@@ -17,90 +23,147 @@
 
 ## 脚本功能说明
 
-### 🧪 test-all.ps1 - 统一测试脚本 (推荐使用)
+### 🧪 测试脚本
 
-**这是最重要的脚本**,运行完整的测试套件。
+#### test-all.ps1 - 完整测试套件（推荐）
 
-**功能**:
-1. ✅ 环境清理
-   - 停止所有运行的服务 (Redis、DND服务器)
-   - 清空Redis数据库
+**功能**: 运行完整的测试套件，包括单元测试、集成测试和功能测试
 
+**测试内容**:
+1. ✅ 环境清理（停止服务、清空Redis）
 2. 🔨 构建项目
-   - 清理旧的构建文件
-   - 编译新版本
-
 3. 📋 运行单元测试
-   - Service层测试 (tests/unit/service/) - 约9个测试
-   - Model层测试 (tests/unit/models/)
-   - 其他单元测试
-
 4. 🔗 运行集成测试
-   - API集成测试 (tests/integration/api/) - 约8个测试
-   - Store集成测试 (tests/integration/store/)
-
-5. 🌐 运行功能测试
-   - 健康检查端点
-   - 完整的CRUD操作:
-     - 创建会话 (POST /api/sessions)
-     - 获取会话 (GET /api/sessions/:id)
-     - 列出会话 (GET /api/sessions)
-     - 更新会话 (PATCH /api/sessions/:id)
-     - 删除会话 (DELETE /api/sessions/:id)
-
-6. 📊 结果汇总
-   - 彩色输出显示测试结果
-   - 详细的通过/失败信息
-
-**输出示例**:
-```
-========================================
-  DND MCP Complete Test Suite
-========================================
-
-=== Step 1/6: Stopping Services ===
-✓ Redis stopped
-✓ DND client server stopped
-
-=== Step 4/6: Building Project ===
-✓ Build successful
-
-=== Step 5/6: Running Unit & Integration Tests ===
-Running Service Layer Unit Tests...
-✓ Service layer unit tests passed
-
-Running API Integration Tests...
-✓ API integration tests passed
-
-========================================
-  Test Results Summary
-========================================
-
-Unit Tests:           PASSED
-Integration Tests:    PASSED
-API Functional Tests: PASSED
-
-Overall Result: ALL TESTS PASSED ✓
-```
+5. 🌐 运行功能测试（HTTP API）
 
 **使用方法**:
 ```powershell
-# 运行所有测试
 .\scripts\test-all.ps1
 
 # 如果遇到执行策略问题
 powershell -ExecutionPolicy Bypass -File .\scripts\test-all.ps1
 ```
 
+**适用场景**:
+- 提交代码前的完整验证
+- CI/CD流程
+- 确保所有功能正常
+
 ---
 
-### 🔨 build.ps1 - 构建脚本
+#### test-fresh.ps1 - 从全新环境运行测试
+
+**功能**: 从完全干净的环境运行单元测试和集成测试
+
+**测试内容**:
+1. ✅ 检查Redis连接
+2. ✅ 清理Redis测试数据(DB 1)
+3. ✅ 运行单元测试
+   - Model层测试
+   - Service层测试
+4. ✅ 运行集成测试
+   - API集成测试(使用真实Redis)
+   - 健康检查测试
+   - 系统统计测试
+5. ⚠️ E2E测试(可选,需要运行中的服务器)
+
+**使用方法**:
+```powershell
+# 运行测试(不包括E2E测试,因为E2E需要服务器运行)
+.\scripts\test-fresh.ps1
+
+# 显示详细输出
+.\scripts\test-fresh.ps1 -Verbose
+
+# 跳过E2E测试检查
+.\scripts\test-fresh.ps1 -SkipE2E
+```
+
+**适用场景**:
+- ✅ 从全新环境拉起测试
+- ✅ 持续集成(CI)环境
+- ✅ 验证基本功能(不需要完整服务器)
+- ✅ 快速测试迭代
+
+**优势**:
+- 自动检查并清理Redis
+- 使用独立的测试数据库(DB 1)
+- 自动清理测试数据
+- 彩色输出和详细日志
+
+---
+
+#### test-e2e.ps1 - 端到端测试
+
+**功能**: 运行完整的端到端测试,包括服务器启动
+
+**测试流程**:
+1. ✅ 检查Redis连接
+2. ✅ 清理Redis数据
+3. 🔨 构建项目(可跳过)
+4. 🚀 启动服务器(后台)
+5. ⏳ 等待服务器就绪
+6. 🌐 运行E2E测试
+   - 完整的用户流程测试
+   - 错误情况测试
+   - 并发测试
+7. 🛑 停止服务器
+8. 🧹 清理测试数据
+
+**使用方法**:
+```powershell
+# 运行完整E2E测试(会构建项目)
+.\scripts\test-e2e.ps1
+
+# 显示详细输出
+.\scripts\test-e2e.ps1 -Verbose
+
+# 跳过构建(如果已构建)
+.\scripts\test-e2e.ps1 -SkipBuild
+```
+
+**适用场景**:
+- ✅ 完整的端到端测试
+- ✅ 验证服务器启动和运行
+- ✅ 真实HTTP API测试
+- ✅ 部署前验证
+
+**注意**:
+- 脚本会启动服务器,请确保8080端口未被占用
+- 测试结束后会自动停止服务器
+- 所有Redis数据会被清理
+
+---
+
+#### test.ps1 - 快速测试
+
+**功能**: 运行基本的Go测试（单元测试 + 集成测试）
+
+**测试范围**:
+- 单元测试
+- 集成测试
+
+**使用方法**:
+```powershell
+.\scripts\test.ps1
+```
+
+**适用场景**:
+- 快速验证代码
+- 不需要完整测试时
+- 开发过程中的快速反馈
+
+---
+
+### 🔨 构建和环境脚本
+
+#### build.ps1 - 构建脚本
 
 **功能**: 从源代码编译项目
 
 **构建步骤**:
 1. 清理bin目录
-2. 编译主程序: `cmd/client/main.go`
+2. 编译主程序: `cmd/server/main.go`
 3. 输出到: `bin/dnd-client.exe`
 
 **使用方法**:
@@ -115,7 +178,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test-all.ps1
 
 ---
 
-### 🛠️ dev.ps1 - 开发环境设置
+#### dev.ps1 - 开发环境设置
 
 **功能**: 一键设置完整的开发环境
 
@@ -138,7 +201,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test-all.ps1
 
 ---
 
-### 🔄 reset-env.ps1 - 环境重置脚本
+#### reset-env.ps1 - 环境重置脚本
 
 **功能**: 将开发环境重置到初始状态
 
@@ -178,7 +241,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test-all.ps1
 
 ---
 
-### 🔴 start-redis.ps1 - Redis启动脚本
+#### start-redis.ps1 - Redis启动脚本
 
 **功能**: 启动Redis服务器 (如果尚未运行)
 
@@ -199,36 +262,23 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test-all.ps1
 
 ---
 
-### ⚡ test.ps1 - 快速测试脚本
-
-**功能**: 运行基本的Go测试
-
-**测试范围**:
-- 单元测试
-- 基本集成测试
-
-**使用方法**:
-```powershell
-.\scripts\test.ps1
-```
-
-**适用场景**:
-- 快速验证代码
-- 不需要完整测试时
-- 开发过程中的快速反馈
-
----
-
 ## 功能对比
 
-| 脚本 | 清理环境 | 构建项目 | 单元测试 | 集成测试 | 功能测试 | 适用场景 |
-|------|---------|---------|---------|---------|---------|---------|
-| **test-all.ps1** | ✅ | ✅ | ✅ | ✅ | ✅ | 完整测试 (推荐) |
-| build.ps1 | ❌ | ✅ | ❌ | ❌ | ❌ | 仅构建 |
-| dev.ps1 | ❌ | ✅ | ❌ | ❌ | ❌ | 环境设置 |
-| reset-env.ps1 | ✅ | ❌ | ❌ | ❌ | ❌ | 环境清理 |
-| start-redis.ps1 | ❌ | ❌ | ❌ | ❌ | ❌ | 启动Redis |
-| test.ps1 | ❌ | ❌ | ✅ | ✅ | ❌ | 快速测试 |
+| 脚本 | 清理环境 | 构建项目 | 单元测试 | 集成测试 | E2E测试 | 启动服务器 | 适用场景 |
+|------|---------|---------|---------|---------|---------|-----------|---------|
+| **test-all.ps1** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | 完整测试 (推荐) |
+| **test-fresh.ps1** | ✅ | ❌ | ✅ | ✅ | ⚠️ | ❌ | 快速测试(单元+集成) |
+| **test-e2e.ps1** | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | 端到端测试 |
+| **test.ps1** | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | 快速测试 |
+| **build.ps1** | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | 仅构建 |
+| **dev.ps1** | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | 环境设置 |
+| **reset-env.ps1** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | 环境清理 |
+| **start-redis.ps1** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | 启动Redis |
+
+**注**:
+- ⚠️ 表示需要服务器已运行
+- ✅ 表示支持
+- ❌ 表示不支持
 
 ## 特性
 
@@ -306,27 +356,29 @@ Stop-Process -Id <PID> -Force
 
 ## 测试覆盖
 
-### 单元测试 (~9个测试)
+### 单元测试 (~10个测试)
+- ✅ Models层业务逻辑
 - ✅ Service层业务逻辑
 - ✅ 参数验证
 - ✅ 错误处理
 - ✅ 边界条件测试
 
-### 集成测试 (~8个测试)
+### 集成测试 (~6个测试)
 - ✅ HTTP请求处理
 - ✅ 响应格式化
 - ✅ 错误响应
 - ✅ 输入验证
+- ✅ 健康检查
+- ✅ 系统统计
 
-### 功能测试 (~6个测试)
+### E2E测试 (~10个测试)
+- ✅ 完整的用户流程
 - ✅ 健康检查端点
-- ✅ 创建会话
-- ✅ 获取会话
-- ✅ 列出会话
-- ✅ 更新会话
-- ✅ 删除会话
+- ✅ CRUD操作
+- ✅ 错误情况
+- ✅ 并发测试
 
-**总计**: 约23个测试用例
+**总计**: 约26个测试用例
 
 ## 使用示例
 
@@ -340,7 +392,7 @@ Stop-Process -Id <PID> -Force
 .\scripts\test-all.ps1
 
 # 3. 如果测试通过,启动服务器
-.\bin\dnd-client.exe server
+.\bin\dnd-client.exe
 ```
 
 ### 示例2: 快速开发循环
@@ -355,7 +407,7 @@ Stop-Process -Id <PID> -Force
 .\scripts\test.ps1
 
 # 4. 启动服务器
-.\bin\dnd-client.exe server
+.\bin\dnd-client.exe
 ```
 
 ### 示例3: 提交代码前
@@ -373,12 +425,14 @@ git commit -m "your message"
 
 ```
 scripts/
-├── test-all.ps1       # 🧪 统一测试脚本 (推荐使用)
+├── test-all.ps1       # 🧪 完整测试套件 (推荐使用)
+├── test-fresh.ps1     # 🆕 从全新环境运行测试
+├── test-e2e.ps1       # 🆕 端到端测试(自动启动服务器)
+├── test.ps1           # ⚡ 快速测试
 ├── build.ps1          # 🔨 构建项目
 ├── dev.ps1            # 🛠️ 开发环境设置
 ├── reset-env.ps1      # 🔄 重置环境
 ├── start-redis.ps1    # 🔴 启动Redis
-├── test.ps1           # ⚡ 快速测试
 ├── README.md          # 📖 本文档
 └── migrations/        # 📁 数据库迁移文件
 ```
@@ -419,11 +473,16 @@ scripts/
 
 如有问题或疑问,请参考:
 - 📄 项目文档: `doc/`
-- 📊 测试报告: `doc/测试报告-任务三.md`
-- 📋 开发指南: `doc/开发任务三_修订版.md`
-- 🔧 脚本整理说明: `doc/Scripts整理说明.md`
+- 📊 测试报告: `tests/README.md`
+- 🔧 项目README: `README.md`
 
 ## 版本历史
+
+- **v2.0** (2025-02-09)
+  - 整理脚本,删除重复功能
+  - 新增 test-fresh.ps1
+  - 新增 test-e2e.ps1
+  - 更新文档
 
 - **v1.0** (2026-02-04)
   - 初始版本

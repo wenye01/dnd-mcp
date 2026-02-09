@@ -9,12 +9,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/assert"
 	"github.com/dnd-mcp/client/internal/api/handler"
 	"github.com/dnd-mcp/client/internal/models"
 	"github.com/dnd-mcp/client/internal/service"
 	"github.com/dnd-mcp/client/pkg/errors"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 )
 
 // MockSessionService Mock Service 接口

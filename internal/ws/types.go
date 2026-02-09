@@ -91,7 +91,7 @@ type NewMessageEventData struct {
 // StateChangedEventData 状态变更事件数据
 type StateChangedEventData struct {
 	SessionID string                 `json:"session_id"`
-	Changes   map[string]interface{} `json:"changes"`   // location, game_time, combat, etc.
+	Changes   map[string]interface{} `json:"changes"` // location, game_time, combat, etc.
 	Timestamp string                 `json:"timestamp"`
 }
 
@@ -99,10 +99,10 @@ type StateChangedEventData struct {
 type CombatUpdatedEventData struct {
 	SessionID string                 `json:"session_id"`
 	CombatID  string                 `json:"combat_id"`
-	Action    string                 `json:"action"`    // attack, defend, use_skill, etc.
+	Action    string                 `json:"action"` // attack, defend, use_skill, etc.
 	Attacker  string                 `json:"attacker"`
 	Target    string                 `json:"target"`
-	Result    map[string]interface{} `json:"result"`    // hit, damage, effect, etc.
+	Result    map[string]interface{} `json:"result"` // hit, damage, effect, etc.
 	Timestamp string                 `json:"timestamp"`
 }
 
@@ -110,15 +110,15 @@ type CombatUpdatedEventData struct {
 type DiceRolledEventData struct {
 	SessionID string `json:"session_id"`
 	PlayerID  string `json:"player_id"`
-	RollType  string `json:"roll_type"`  // d20, ability_check, saving_throw, etc.
-	Result    int    `json:"result"`     // 骰子结果
-	Details   string `json:"details"`    // 详细描述
+	RollType  string `json:"roll_type"` // d20, ability_check, saving_throw, etc.
+	Result    int    `json:"result"`    // 骰子结果
+	Details   string `json:"details"`   // 详细描述
 	Timestamp string `json:"timestamp"`
 }
 
 // ErrorEventData 错误事件数据
 type ErrorEventData struct {
-	Code    string `json:"code"`    // INVALID_MESSAGE, SUBSCRIPTION_FAILED, etc.
-	Message string `json:"message"`
+	Code      string `json:"code"` // INVALID_MESSAGE, SUBSCRIPTION_FAILED, etc.
+	Message   string `json:"message"`
 	Timestamp string `json:"timestamp"`
 }

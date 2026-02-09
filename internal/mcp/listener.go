@@ -10,10 +10,10 @@ import (
 
 // EventListener 事件监听器
 type EventListener struct {
-	mcpClient  MCPClient
-	wsHub      *ws.Hub
-	eventChan  <-chan Event
-	sessionID  string
+	mcpClient MCPClient
+	wsHub     *ws.Hub
+	eventChan <-chan Event
+	sessionID string
 }
 
 // NewEventListener 创建事件监听器

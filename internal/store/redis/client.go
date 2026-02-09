@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/dnd-mcp/client/pkg/config"
+	"github.com/redis/go-redis/v9"
 )
 
 // Client Redis 客户端接口

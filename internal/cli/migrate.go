@@ -5,9 +5,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"github.com/dnd-mcp/client/internal/store/postgres"
 	"github.com/dnd-mcp/client/pkg/config"
+	"github.com/spf13/cobra"
 )
 
 // migrateCmd 迁移命令

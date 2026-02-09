@@ -20,9 +20,9 @@ type PostgresStore interface {
 
 // Manager 持久化管理器
 type Manager struct {
-	trigger      trigger.PersistenceTrigger // 触发器
-	sessionStore store.SessionStore          // 会话存储
-	messageStore store.MessageStore          // 消息存储
+	trigger       trigger.PersistenceTrigger // 触发器
+	sessionStore  store.SessionStore         // 会话存储
+	messageStore  store.MessageStore         // 消息存储
 	postgresStore PostgresStore              // PostgreSQL 存储（可选）
 }
 
@@ -34,10 +34,10 @@ func NewManager(
 	postgresStore PostgresStore,
 ) *Manager {
 	return &Manager{
-		trigger:        trig,
-		sessionStore:   sessionStore,
-		messageStore:   messageStore,
-		postgresStore:  postgresStore,
+		trigger:       trig,
+		sessionStore:  sessionStore,
+		messageStore:  messageStore,
+		postgresStore: postgresStore,
 	}
 }
 

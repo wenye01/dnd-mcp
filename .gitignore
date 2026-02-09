@@ -44,5 +44,13 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+
+# Redis dumps
+dump.rdb
+
+# Claude Code settings
 .claude/settings.local.json
-.claude/settings.local.json
+
+# Test scripts
+test_*.ps1
+test_*.sh

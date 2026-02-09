@@ -11,20 +11,20 @@ import (
 // 从 PostgreSQL 恢复数据到 Redis
 type RestoreService struct {
 	postgresSessionReader SessionReader
-	postgresMessageReader  MessageReader
+	postgresMessageReader MessageReader
 	redisSessionReader    SessionReader // 添加 Reader 用于检查是否存在
-	redisSessionWriter     SessionWriter
-	redisMessageWriter      MessageWriter
+	redisSessionWriter    SessionWriter
+	redisMessageWriter    MessageWriter
 }
 
 // RestoreResult 恢复结果
 type RestoreResult struct {
-	SessionCount int       // 恢复的会话数量
-	MessageCount int       // 恢复的消息数量
-	SkippedCount int       // 跳过的数量（已存在）
+	SessionCount int           // 恢复的会话数量
+	MessageCount int           // 恢复的消息数量
+	SkippedCount int           // 跳过的数量（已存在）
 	Duration     time.Duration // 恢复耗时
-	StartTime    time.Time // 开始时间
-	EndTime      time.Time // 结束时间
+	StartTime    time.Time     // 开始时间
+	EndTime      time.Time     // 结束时间
 }
 
 // NewRestoreService 创建恢复服务

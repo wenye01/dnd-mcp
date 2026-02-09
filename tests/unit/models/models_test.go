@@ -103,7 +103,7 @@ func TestSessionUpdateSettings(t *testing.T) {
 
 	// 添加设置
 	newSettings := map[string]interface{}{
-		"ruleset":       "dnd5e",
+		"ruleset":        "dnd5e",
 		"starting_level": 5,
 	}
 	session.UpdateSettings(newSettings)
@@ -226,8 +226,8 @@ func TestMessageAddToolCall(t *testing.T) {
 
 	// 添加第一个工具调用
 	toolCall1 := models.ToolCall{
-		ID:       "call-1",
-		Name:     "roll_dice",
+		ID:        "call-1",
+		Name:      "roll_dice",
 		Arguments: map[string]interface{}{"formula": "1d20"},
 	}
 	message.AddToolCall(toolCall1)
@@ -238,8 +238,8 @@ func TestMessageAddToolCall(t *testing.T) {
 
 	// 添加第二个工具调用
 	toolCall2 := models.ToolCall{
-		ID:       "call-2",
-		Name:     "resolve_attack",
+		ID:        "call-2",
+		Name:      "resolve_attack",
 		Arguments: map[string]interface{}{"target": "goblin"},
 	}
 	message.AddToolCall(toolCall2)

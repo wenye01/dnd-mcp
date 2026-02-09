@@ -50,7 +50,21 @@
       "Bash(start:*)",
       "Bash($sessionId = \"f1f980d9-32a3-4690-a0ed-fe44182c48fb\")",
       "mcp__web-search-prime__webSearchPrime",
-      "mcp__web-reader__webReader"
+      "mcp__web-reader__webReader",
+      "Bash($env:LLM_PROVIDER=\"mock\")",
+      "Bash($env:REDIS_HOST=\"localhost:6379\")",
+      "Bash($env:LOG_LEVEL=\"debug\")",
+      "Bash(.bindnd-client.exe:*)",
+      "Bash(Start-Sleep -Seconds 3)",
+      "Bash(python:*)",
+      "Bash(SESSION_ID=\"4ff0e112-c911-4284-82bb-0f2812eaacad\":*)",
+      "Bash(exit:*)",
+      "Bash(bash:*)",
+      "Bash(Get-ChildItem -Path \"C:\\Code\\dnd\\dnd-mcp\\internal\" -Recurse -File)",
+      "Bash(Select-Object:*)",
+      "Bash(gofmt:*)",
+      "Bash(test:*)",
+      "Bash(Remove-Item:*)"
     ],
     "deny": [],
     "ask": []

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/dnd-mcp/client/internal/api/handler"
 	"github.com/dnd-mcp/client/internal/api/middleware"
 	"github.com/dnd-mcp/client/internal/llm"
@@ -17,21 +16,22 @@ import (
 	"github.com/dnd-mcp/client/internal/ws"
 	"github.com/dnd-mcp/client/pkg/config"
 	"github.com/dnd-mcp/client/pkg/logger"
+	"github.com/gin-gonic/gin"
 )
 
 // Server HTTP 服务器
 type Server struct {
-	config          *config.Config
-	httpServer      *http.Server
-	router          *gin.Engine
-	sessionService  *service.SessionService
-	sessionStore    store.SessionStore
-	messageStore    store.MessageStore
-	llmClient       llm.LLMClient
-	mcpClient       mcp.MCPClient
-	contextBuilder  *service.ContextBuilder
-	hub             *ws.Hub
-	systemHandler   *handler.SystemHandler
+	config         *config.Config
+	httpServer     *http.Server
+	router         *gin.Engine
+	sessionService *service.SessionService
+	sessionStore   store.SessionStore
+	messageStore   store.MessageStore
+	llmClient      llm.LLMClient
+	mcpClient      mcp.MCPClient
+	contextBuilder *service.ContextBuilder
+	hub            *ws.Hub
+	systemHandler  *handler.SystemHandler
 }
 
 // NewServer 创建 HTTP 服务器
@@ -122,9 +122,11 @@ func (s *Server) setupRoutes() {
 			sessions.POST("/:id/broadcast", wsHandler.BroadcastMessage)
 		}
 
-		// 系统路由（任务八：持久化触发器）
+		// 系统路由（任务八：持久化触发器，任务九：健康检查和统计）
 		system := api.Group("/system")
 		{
+			system.GET("/health", s.systemHandler.Health)
+			system.GET("/stats", s.systemHandler.Stats)
 			system.POST("/persistence/trigger", s.systemHandler.TriggerPersistence)
 		}
 	}

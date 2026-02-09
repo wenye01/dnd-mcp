@@ -11,18 +11,18 @@ import (
 // 从 Redis 备份数据到 PostgreSQL
 type BackupService struct {
 	redisSessionReader    SessionReader
-	redisMessageReader     MessageReader
-	postgresSessionWriter  SessionWriter
-	postgresMessageWriter  MessageWriter
+	redisMessageReader    MessageReader
+	postgresSessionWriter SessionWriter
+	postgresMessageWriter MessageWriter
 }
 
 // BackupResult 备份结果
 type BackupResult struct {
-	SessionCount int       // 备份的会话数量
-	MessageCount int       // 备份的消息数量
+	SessionCount int           // 备份的会话数量
+	MessageCount int           // 备份的消息数量
 	Duration     time.Duration // 备份耗时
-	StartTime    time.Time // 开始时间
-	EndTime      time.Time // 结束时间
+	StartTime    time.Time     // 开始时间
+	EndTime      time.Time     // 结束时间
 }
 
 // NewBackupService 创建备份服务
@@ -33,7 +33,7 @@ func NewBackupService(
 	postgresMessageWriter MessageWriter,
 ) *BackupService {
 	return &BackupService{
-		redisSessionReader:   redisSessionReader,
+		redisSessionReader:    redisSessionReader,
 		redisMessageReader:    redisMessageReader,
 		postgresSessionWriter: postgresSessionWriter,
 		postgresMessageWriter: postgresMessageWriter,

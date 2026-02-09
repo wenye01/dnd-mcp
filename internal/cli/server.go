@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/dnd-mcp/client/internal/api"
 	"github.com/dnd-mcp/client/internal/api/handler"
 	"github.com/dnd-mcp/client/internal/llm"
@@ -22,6 +21,7 @@ import (
 	"github.com/dnd-mcp/client/internal/ws"
 	"github.com/dnd-mcp/client/pkg/config"
 	"github.com/dnd-mcp/client/pkg/logger"
+	"github.com/spf13/cobra"
 )
 
 var serverCmd = &cobra.Command{

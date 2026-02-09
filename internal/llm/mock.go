@@ -58,8 +58,8 @@ func (m *MockLLMClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespon
 				{
 					Index: 0,
 					Message: Message{
-						Role:      "assistant",
-						Content:   "",
+						Role:    "assistant",
+						Content: "",
 						ToolCalls: []ToolCall{
 							{
 								ID:   "call_mock_001",

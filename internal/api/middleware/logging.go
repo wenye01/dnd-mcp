@@ -4,8 +4,8 @@ package middleware
 import (
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/dnd-mcp/client/pkg/logger"
+	"github.com/gin-gonic/gin"
 )
 
 // Logger 日志中间件

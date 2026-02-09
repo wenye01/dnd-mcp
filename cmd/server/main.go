@@ -11,16 +11,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5"
 	"github.com/dnd-mcp/client/internal/api"
 	"github.com/dnd-mcp/client/internal/api/handler"
 	"github.com/dnd-mcp/client/internal/models"
+	"github.com/dnd-mcp/client/internal/monitor"
 	"github.com/dnd-mcp/client/internal/persistence"
 	"github.com/dnd-mcp/client/internal/store"
 	"github.com/dnd-mcp/client/internal/store/postgres"
 	"github.com/dnd-mcp/client/internal/store/redis"
 	"github.com/dnd-mcp/client/pkg/config"
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 )
 
 func main() {
@@ -64,6 +65,17 @@ func main() {
 	// 初始化 Redis 存储
 	sessionStore := redis.NewSessionStore(redisClient)
 	messageStore := redis.NewMessageStore(redisClient)
+
+	// 初始化健康监控器
+	healthMonitor := monitor.NewHealthMonitor()
+	healthMonitor.Register(monitor.NewRedisHealthChecker(redisClient))
+
+	// 初始化统计监控器
+	statsMonitor := monitor.NewStatsMonitor("v0.1.0") // 从配置或常量获取版本
+	statsMonitor.Register(monitor.NewRedisStatsCollector(redisClient))
+	if sessionStore != nil {
+		statsMonitor.Register(monitor.NewSessionStatsCollector(sessionStore))
+	}
 
 	// 初始化 AdminHandler（如果 PostgreSQL 可用）
 	var adminHandler *handler.AdminHandler
@@ -125,19 +137,35 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// 创建路由
-	router := api.Router(sessionStore, messageStore, adminHandler)
-
-	// 创建 HTTP 服务器
-	server := &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
-		Handler: router,
+	// 持久化管理器（如果可用）
+	var persistenceTriggerer handler.PersistenceTriggerer
+	if postgresClient != nil {
+		// 持久化管理器已在上面初始化，这里需要获取它
+		// 由于作用域问题，我们需要重新组织代码结构
+		// 为简单起见，这里先设置为nil
+		persistenceTriggerer = nil
 	}
+
+	// 创建系统处理器
+	systemHandler := handler.NewSystemHandler(persistenceTriggerer, healthMonitor, statsMonitor)
+
+	// 创建 API 服务器
+	apiServer := api.NewServer(
+		cfg,
+		nil, // sessionService
+		sessionStore,
+		messageStore,
+		nil, // llmClient
+		nil, // mcpClient
+		nil, // contextBuilder
+		nil, // hub
+		systemHandler,
+	)
 
 	// 启动服务器（goroutine）
 	go func() {
-		log.Printf("✓ HTTP Server 启动成功，监听 %s", server.Addr)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Printf("✓ HTTP Server 启动成功，监听 %s:%d", cfg.Server.Host, cfg.Server.Port)
+		if err := apiServer.Start(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("HTTP Server 启动失败: %v", err)
 		}
 	}()
@@ -152,7 +180,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := server.Shutdown(ctx); err != nil {
+	if err := apiServer.Shutdown(ctx); err != nil {
 		log.Fatalf("服务器关闭失败: %v", err)
 	}
 

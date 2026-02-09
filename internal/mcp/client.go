@@ -24,7 +24,7 @@ type MCPClient interface {
 
 // Event MCP Server 事件
 type Event struct {
-	Type      string                 `json:"type"`       // state_changed, combat_updated, etc.
+	Type      string                 `json:"type"` // state_changed, combat_updated, etc.
 	SessionID string                 `json:"session_id"`
 	Data      map[string]interface{} `json:"data"`
 }

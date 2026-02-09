@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 	"github.com/dnd-mcp/client/internal/store"
 	"github.com/dnd-mcp/client/internal/ws"
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 // WebSocketUpgrader WebSocket 升级器
@@ -103,9 +103,9 @@ func (h *WSHandler) HandleWebSocket(c *gin.Context) {
 	connectedMsg := ws.ServerMessage{
 		Type: "connected",
 		Data: map[string]interface{}{
-			"session_id": sessionID,
+			"session_id":    sessionID,
 			"connection_id": connID,
-			"player_id":  playerID,
+			"player_id":     playerID,
 		},
 	}
 	conn.Send <- connectedMsg
@@ -140,7 +140,7 @@ func (h *WSHandler) BroadcastTestMessage(c *gin.Context) {
 	h.hub.Broadcast <- *event
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Event broadcasted",
+		"message":  "Event broadcasted",
 		"event_id": event.ID,
 	})
 }
@@ -161,9 +161,9 @@ func (h *WSHandler) GetConnectionsInfo(c *gin.Context) {
 	connections := h.hub.GetSessionConnections(sessionID)
 	if connections == nil {
 		c.JSON(http.StatusOK, gin.H{
-			"session_id": sessionID,
+			"session_id":  sessionID,
 			"connections": []interface{}{},
-			"count": 0,
+			"count":       0,
 		})
 		return
 	}
@@ -172,8 +172,8 @@ func (h *WSHandler) GetConnectionsInfo(c *gin.Context) {
 	for _, conn := range connections {
 		connInfo := map[string]interface{}{
 			"connection_id": conn.ID,
-			"session_id":   conn.SessionID,
-			"player_id":    conn.PlayerID,
+			"session_id":    conn.SessionID,
+			"player_id":     conn.PlayerID,
 			"subscriptions": conn.Subscriptions,
 		}
 		connInfos = append(connInfos, connInfo)

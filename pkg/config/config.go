@@ -40,8 +40,8 @@ type LogConfig struct {
 type HTTPConfig struct {
 	Host            string `mapstructure:"host" env:"HTTP_HOST" default:"0.0.0.0"`
 	Port            int    `mapstructure:"port" env:"HTTP_PORT" default:"8080"`
-	ReadTimeout     int    `mapstructure:"read_timeout" env:"HTTP_READ_TIMEOUT" default:"30"`     // seconds
-	WriteTimeout    int    `mapstructure:"write_timeout" env:"HTTP_WRITE_TIMEOUT" default:"30"`    // seconds
+	ReadTimeout     int    `mapstructure:"read_timeout" env:"HTTP_READ_TIMEOUT" default:"30"`         // seconds
+	WriteTimeout    int    `mapstructure:"write_timeout" env:"HTTP_WRITE_TIMEOUT" default:"30"`       // seconds
 	ShutdownTimeout int    `mapstructure:"shutdown_timeout" env:"HTTP_SHUTDOWN_TIMEOUT" default:"10"` // seconds
 	EnableCORS      bool   `mapstructure:"enable_cors" env:"HTTP_ENABLE_CORS" default:"true"`
 }
@@ -72,7 +72,7 @@ type LLMConfig struct {
 // MCPConfig MCP 配置
 type MCPConfig struct {
 	ServerURL string `mapstructure:"server_url" env:"MCP_SERVER_URL" default:"mock://"` // mock:// or http://...
-	Timeout   int    `mapstructure:"timeout" env:"MCP_TIMEOUT" default:"30"`             // seconds
+	Timeout   int    `mapstructure:"timeout" env:"MCP_TIMEOUT" default:"30"`            // seconds
 }
 
 // Load 从环境变量和.env文件加载配置

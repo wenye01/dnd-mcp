@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/dnd-mcp/client/internal/models"
-	"github.com/dnd-mcp/client/internal/repository"
 	"github.com/dnd-mcp/client/internal/persistence"
+	"github.com/dnd-mcp/client/internal/repository"
 	"github.com/dnd-mcp/client/pkg/errors"
+	"github.com/google/uuid"
 )
 
 // sessionStore 会话存储实现
@@ -142,11 +142,11 @@ func (s *sessionStore) Update(ctx context.Context, session *models.Session) erro
 	// 更新 Hash
 	sessionKey := fmt.Sprintf("session:%s", session.ID)
 	_, err = s.client.Client().HSet(ctx, sessionKey, map[string]interface{}{
-		"name":           session.Name,
-		"max_players":    session.MaxPlayers,
-		"settings":       settingsJSON,
-		"updated_at":     session.UpdatedAt.UTC().Format(time.RFC3339),
-		"status":         session.Status,
+		"name":        session.Name,
+		"max_players": session.MaxPlayers,
+		"settings":    settingsJSON,
+		"updated_at":  session.UpdatedAt.UTC().Format(time.RFC3339),
+		"status":      session.Status,
 	}).Result()
 
 	if err != nil {
@@ -290,4 +290,13 @@ func (s *sessionStore) ListActive(ctx context.Context) ([]*models.Session, error
 	// 目前 Redis 没有软删除机制，ListActive 和 List 行为一致
 	// 如果将来需要软删除，可以在 session hash 中添加 deleted_at 字段
 	return s.List(ctx)
+}
+
+// Count 统计会话数量
+func (s *sessionStore) Count(ctx context.Context) (int64, error) {
+	count, err := s.client.Client().SCard(ctx, "sessions:all").Result()
+	if err != nil {
+		return 0, fmt.Errorf("统计会话数量失败: %w", err)
+	}
+	return count, nil
 }

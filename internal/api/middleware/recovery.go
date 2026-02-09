@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	"github.com/gin-gonic/gin"
 	"github.com/dnd-mcp/client/pkg/logger"
+	"github.com/gin-gonic/gin"
 )
 
 // Recovery 恢复中间件，捕获 panic

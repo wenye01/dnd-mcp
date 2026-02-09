@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dnd-mcp/client/pkg/config"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
-	"github.com/dnd-mcp/client/pkg/config"
 )
 
 // Client PostgreSQL 客户端

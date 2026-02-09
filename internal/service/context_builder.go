@@ -35,9 +35,9 @@ func (b *ContextBuilder) BuildContext(ctx context.Context, sessionID, userMessag
 	systemPrompt := b.buildSystemPrompt()
 
 	// 2. 历史消息加载策略
-	maxHistory := 50                   // 最多加载多少条历史消息（默认 50 条）
-	includeRoles := []string{}         // 包含哪些角色的消息（空数组表示全部）
-	excludeRoles := []string{}         // 排除哪些角色的消息（如 ["system"]）
+	maxHistory := 50           // 最多加载多少条历史消息（默认 50 条）
+	includeRoles := []string{} // 包含哪些角色的消息（空数组表示全部）
+	excludeRoles := []string{} // 排除哪些角色的消息（如 ["system"]）
 
 	//
 	// === 执行区 ===

@@ -5,11 +5,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/dnd-mcp/client/internal/models"
 	"github.com/dnd-mcp/client/internal/service"
 	"github.com/dnd-mcp/client/pkg/errors"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 // MockSessionRepository Mock Repository 接口
@@ -223,10 +223,10 @@ func TestSessionService_UpdateSession_Success(t *testing.T) {
 
 	// 设置 Mock 期望 - Get
 	existingSession := &models.Session{
-		ID:        "session-123",
-		Name:      "旧名称",
+		ID:         "session-123",
+		Name:       "旧名称",
 		MaxPlayers: 4,
-		Status:    "active",
+		Status:     "active",
 	}
 	mockRepo.On("Get", mock.Anything, "session-123").Return(existingSession, nil)
 

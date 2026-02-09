@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	redisClient redisclient.Client
+	redisClient  redisclient.Client
 	sessionStore store.SessionStore
 	messageStore store.MessageStore
 )

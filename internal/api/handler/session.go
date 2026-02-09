@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/dnd-mcp/client/internal/models"
 	"github.com/dnd-mcp/client/internal/service"
 	"github.com/dnd-mcp/client/pkg/errors"
+	"github.com/gin-gonic/gin"
 )
 
 // SessionResponse 会话响应

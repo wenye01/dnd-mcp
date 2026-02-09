@@ -37,7 +37,7 @@ func (c *HTTPClient) Initialize(ctx context.Context, sessionID, serverURL string
 
 	// 调用 MCP Server 的 initialize 接口
 	req := map[string]interface{}{
-		"session_id":  sessionID,
+		"session_id":   sessionID,
 		"capabilities": []string{"tools", "events"},
 	}
 

@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/dnd-mcp/client/internal/models"
 	"github.com/dnd-mcp/client/internal/repository"
 	"github.com/dnd-mcp/client/pkg/errors"
+	"github.com/google/uuid"
 )
 
 // SessionServiceInterface 会话服务接口

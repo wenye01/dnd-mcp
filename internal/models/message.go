@@ -9,19 +9,19 @@ import (
 
 // Message 消息模型
 type Message struct {
-	ID        string    `json:"id"`
-	SessionID string    `json:"session_id"`
-	Role      string    `json:"role"`
-	Content   string    `json:"content"`
+	ID        string     `json:"id"`
+	SessionID string     `json:"session_id"`
+	Role      string     `json:"role"`
+	Content   string     `json:"content"`
 	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-	PlayerID  string    `json:"player_id,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	PlayerID  string     `json:"player_id,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
 }
 
 // ToolCall 工具调用
 type ToolCall struct {
-	ID       string                 `json:"id"`
-	Name     string                 `json:"name"`
+	ID        string                 `json:"id"`
+	Name      string                 `json:"name"`
 	Arguments map[string]interface{} `json:"arguments"`
 }
 

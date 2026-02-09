@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/dnd-mcp/client/internal/models"
 	"github.com/dnd-mcp/client/internal/persistence"
+	"github.com/jackc/pgx/v5"
 )
 
 // PostgresSessionStore PostgreSQL 会话存储

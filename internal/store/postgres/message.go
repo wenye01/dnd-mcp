@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/dnd-mcp/client/internal/models"
 	"github.com/dnd-mcp/client/internal/persistence"
+	"github.com/jackc/pgx/v5"
 )
 
 // PostgresMessageStore PostgreSQL 消息存储
