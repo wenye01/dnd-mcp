@@ -51,9 +51,11 @@ dump.rdb
 # Claude Code settings
 .claude/settings.local.json
 
-# Test scripts
-test_*.ps1
-test_*.sh
+# Temporary test scripts (e.g., test_temp.ps1, test_debug_*.sh)
+test_*.tmp.ps1
+test_*.tmp.sh
+test_debug.ps1
+test_debug.sh
 
 # Go sum files in workspace (auto-generated)
 **/go.sum
