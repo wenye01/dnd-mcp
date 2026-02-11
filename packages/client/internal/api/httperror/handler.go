@@ -2,11 +2,11 @@
 package httperror
 
 import (
-	"errors"
+	stderrors "errors"
 	"net/http"
 
 	"github.com/dnd-mcp/client/internal/api/dto"
-	"github.com/dnd-mcp/client/pkg/errors"
+	apperrors "github.com/dnd-mcp/client/pkg/errors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -37,17 +37,17 @@ func (h *ErrorHandler) Handle(c *gin.Context, err error) {
 func (h *ErrorHandler) classifyError(err error) (int, string, string) {
 	// 检查预定义错误
 	switch {
-	case errors.Is(err, errors.ErrSessionNotFound):
+	case stderrors.Is(err, apperrors.ErrSessionNotFound):
 		return http.StatusNotFound, "SESSION_NOT_FOUND", "会话不存在"
-	case errors.Is(err, errors.ErrMessageNotFound):
+	case stderrors.Is(err, apperrors.ErrMessageNotFound):
 		return http.StatusNotFound, "MESSAGE_NOT_FOUND", "消息不存在"
-	case errors.Is(err, errors.ErrInvalidArgument):
+	case stderrors.Is(err, apperrors.ErrInvalidArgument):
 		return http.StatusBadRequest, "INVALID_ARGUMENT", "无效的请求参数"
-	case errors.Is(err, errors.ErrInvalidMaxPlayers):
+	case stderrors.Is(err, apperrors.ErrInvalidMaxPlayers):
 		return http.StatusBadRequest, "INVALID_MAX_PLAYERS", "玩家数量必须在1-10之间"
-	case errors.Is(err, errors.ErrRedisConnection):
+	case stderrors.Is(err, apperrors.ErrRedisConnection):
 		return http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "服务暂时不可用"
-	case errors.Is(err, errors.ErrAlreadyExists):
+	case stderrors.Is(err, apperrors.ErrAlreadyExists):
 		return http.StatusConflict, "ALREADY_EXISTS", "资源已存在"
 	default:
 		// 未知错误

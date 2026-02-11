@@ -54,3 +54,7 @@ dump.rdb
 # Test scripts
 test_*.ps1
 test_*.sh
+
+# Go sum files in workspace (auto-generated)
+**/go.sum
+go.work.sum

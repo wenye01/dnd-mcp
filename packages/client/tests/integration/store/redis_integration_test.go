@@ -14,6 +14,7 @@ import (
 	"github.com/dnd-mcp/client/internal/store"
 	redisclient "github.com/dnd-mcp/client/internal/store/redis"
 	"github.com/dnd-mcp/client/pkg/config"
+	"github.com/google/uuid"
 )
 
 var (
@@ -207,8 +208,8 @@ func TestMessageCreateAndGet(t *testing.T) {
 func TestMessageList(t *testing.T) {
 	ctx := context.Background()
 
-	// 创建会话
-	sessionID := "test-list-messages-session"
+	// 创建会话 - 使用唯一 ID 避免测试间冲突
+	sessionID := fmt.Sprintf("test-list-messages-session-%s", uuid.New().String()[:8])
 	session := models.NewSession("测试会话", "user-123", "http://localhost:9000")
 	session.ID = sessionID
 	session.WebSocketKey = "ws-list-messages-key"
@@ -218,6 +219,11 @@ func TestMessageList(t *testing.T) {
 		t.Fatalf("创建会话失败: %v", err)
 	}
 	defer sessionStore.Delete(ctx, sessionID)
+
+	// 确保测试结束后清理消息
+	defer func() {
+		redisClient.Client().Del(ctx, fmt.Sprintf("msg:%s", sessionID))
+	}()
 
 	// 创建多条消息
 	messages := []string{
@@ -261,8 +267,8 @@ func TestMessageList(t *testing.T) {
 func TestMessageListWithLimit(t *testing.T) {
 	ctx := context.Background()
 
-	// 创建会话
-	sessionID := "test-limit-messages-session"
+	// 创建会话 - 使用唯一 ID 避免测试间冲突
+	sessionID := fmt.Sprintf("test-limit-messages-session-%s", uuid.New().String()[:8])
 	session := models.NewSession("测试会话", "user-123", "http://localhost:9000")
 	session.ID = sessionID
 	session.WebSocketKey = "ws-limit-key"
@@ -272,6 +278,11 @@ func TestMessageListWithLimit(t *testing.T) {
 		t.Fatalf("创建会话失败: %v", err)
 	}
 	defer sessionStore.Delete(ctx, sessionID)
+
+	// 确保测试结束后清理消息
+	defer func() {
+		redisClient.Client().Del(ctx, fmt.Sprintf("msg:%s", sessionID))
+	}()
 
 	// 创建5条消息
 	for i := 0; i < 5; i++ {

@@ -229,7 +229,10 @@ func TestAPI_SystemStats(t *testing.T) {
 		err = unmarshalJSON(resp, &stats)
 		require.NoError(t, err)
 
-		assert.Greater(t, stats["uptime_seconds"], int64(0))
+		// uptime_seconds 可能是 float64 (JSON number)
+		uptime, ok := stats["uptime_seconds"].(float64)
+		require.True(t, ok, "uptime_seconds should be a number")
+		assert.GreaterOrEqual(t, uptime, float64(0)) // 允许为0，因为刚启动
 		assert.NotEmpty(t, stats["version"])
 	})
 }

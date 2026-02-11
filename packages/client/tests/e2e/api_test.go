@@ -214,7 +214,7 @@ func TestE2E_ErrorCases(t *testing.T) {
 	})
 
 	t.Run("无效的JSON请求体", func(t *testing.T) {
-		req, err := http.NewRequest("GET", baseURL+"/api/sessions", bytes.NewBufferString("invalid json"))
+		req, err := http.NewRequest("POST", baseURL+"/api/sessions", bytes.NewBufferString("invalid json"))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -243,7 +243,7 @@ func TestE2E_Concurrency(t *testing.T) {
 					"max_players":    4,
 				}
 
-				resp := requestJSON(t, "GET", "/api/sessions", createReq)
+				resp := requestJSON(t, "POST", "/api/sessions", createReq)
 				results <- resp.StatusCode
 			}(i)
 		}

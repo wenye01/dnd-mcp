@@ -48,6 +48,11 @@ func (m *MockSessionRepository) Delete(ctx context.Context, id string) error {
 	return args.Error(0)
 }
 
+func (m *MockSessionRepository) Count(ctx context.Context) (int64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 // TestSessionService_CreateSession_Success 测试成功创建会话
 func TestSessionService_CreateSession_Success(t *testing.T) {
 	// 创建 Mock
