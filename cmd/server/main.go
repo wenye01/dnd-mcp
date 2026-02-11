@@ -16,7 +16,7 @@ import (
 	"github.com/dnd-mcp/client/internal/models"
 	"github.com/dnd-mcp/client/internal/monitor"
 	"github.com/dnd-mcp/client/internal/persistence"
-	"github.com/dnd-mcp/client/internal/store"
+	"github.com/dnd-mcp/client/internal/service"
 	"github.com/dnd-mcp/client/internal/store/postgres"
 	"github.com/dnd-mcp/client/internal/store/redis"
 	"github.com/dnd-mcp/client/pkg/config"
@@ -74,6 +74,7 @@ func main() {
 	statsMonitor := monitor.NewStatsMonitor("v0.1.0") // 从配置或常量获取版本
 	statsMonitor.Register(monitor.NewRedisStatsCollector(redisClient))
 	if sessionStore != nil {
+		// sessionStore 是 store.SessionStore 类型，包含 Count 方法
 		statsMonitor.Register(monitor.NewSessionStatsCollector(sessionStore))
 	}
 
@@ -130,6 +131,13 @@ func main() {
 		}
 	}
 
+	// 注意：adminHandler 目前未在路由中使用，但保留以备将来使用
+	_ = adminHandler
+
+	// 创建 SessionService
+	// sessionStore 已经实现了 repository.SessionRepository 接口
+	sessionService := service.NewSessionService(sessionStore)
+
 	// 设置 Gin 模式
 	if cfg.Log.Level == "debug" {
 		gin.SetMode(gin.DebugMode)
@@ -152,7 +160,7 @@ func main() {
 	// 创建 API 服务器
 	apiServer := api.NewServer(
 		cfg,
-		nil, // sessionService
+		sessionService,
 		sessionStore,
 		messageStore,
 		nil, // llmClient
@@ -164,7 +172,7 @@ func main() {
 
 	// 启动服务器（goroutine）
 	go func() {
-		log.Printf("✓ HTTP Server 启动成功，监听 %s:%d", cfg.Server.Host, cfg.Server.Port)
+		log.Printf("✓ HTTP Server 启动成功，监听 %s:%d", cfg.HTTP.Host, cfg.HTTP.Port)
 		if err := apiServer.Start(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("HTTP Server 启动失败: %v", err)
 		}
@@ -190,7 +198,10 @@ func main() {
 // Redis存储适配器，将store.SessionStore/MessageStore适配为persistence接口
 
 type redisSessionReaderAdapter struct {
-	store store.SessionStore
+	store interface {
+		Get(ctx context.Context, id string) (*models.Session, error)
+		List(ctx context.Context) ([]*models.Session, error)
+	}
 }
 
 func (a *redisSessionReaderAdapter) Get(ctx context.Context, id string) (*models.Session, error) {
@@ -207,7 +218,10 @@ func (a *redisSessionReaderAdapter) ListActive(ctx context.Context) ([]*models.S
 }
 
 type redisMessageReaderAdapter struct {
-	store store.MessageStore
+	store interface {
+		Get(ctx context.Context, sessionID, messageID string) (*models.Message, error)
+		List(ctx context.Context, sessionID string, limit int) ([]*models.Message, error)
+	}
 }
 
 func (a *redisMessageReaderAdapter) Get(ctx context.Context, sessionID, messageID string) (*models.Message, error) {
@@ -235,7 +249,10 @@ func (a *redisMessageReaderAdapter) ListByRole(ctx context.Context, sessionID, r
 }
 
 type redisSessionWriterAdapter struct {
-	store store.SessionStore
+	store interface {
+		Create(ctx context.Context, session *models.Session) error
+		Update(ctx context.Context, session *models.Session) error
+	}
 }
 
 func (a *redisSessionWriterAdapter) Create(ctx context.Context, session *models.Session) error {
@@ -257,7 +274,9 @@ func (a *redisSessionWriterAdapter) Update(ctx context.Context, session *models.
 }
 
 type redisMessageWriterAdapter struct {
-	store store.MessageStore
+	store interface {
+		Create(ctx context.Context, message *models.Message) error
+	}
 }
 
 func (a *redisMessageWriterAdapter) Create(ctx context.Context, message *models.Message) error {

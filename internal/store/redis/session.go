@@ -10,6 +10,7 @@ import (
 	"github.com/dnd-mcp/client/internal/models"
 	"github.com/dnd-mcp/client/internal/persistence"
 	"github.com/dnd-mcp/client/internal/repository"
+	"github.com/dnd-mcp/client/internal/store"
 	"github.com/dnd-mcp/client/pkg/errors"
 	"github.com/google/uuid"
 )
@@ -19,12 +20,13 @@ type sessionStore struct {
 	client Client
 }
 
-// 确保 sessionStore 实现了 repository.SessionRepository 接口
+// 确保 sessionStore 实现了多个接口
 var _ repository.SessionRepository = (*sessionStore)(nil)
+var _ store.SessionStore = (*sessionStore)(nil)
 
 // NewSessionStore 创建会话存储实例
-// 返回 repository.SessionRepository 接口类型
-func NewSessionStore(client Client) repository.SessionRepository {
+// 返回 store.SessionStore 接口类型，同时满足 repository.SessionRepository
+func NewSessionStore(client Client) store.SessionStore {
 	return &sessionStore{client: client}
 }
 

@@ -24,4 +24,7 @@ type SessionRepository interface {
 
 	// Delete 删除会话（软删除）
 	Delete(ctx context.Context, id string) error
+
+	// Count 统计会话数量
+	Count(ctx context.Context) (int64, error)
 }

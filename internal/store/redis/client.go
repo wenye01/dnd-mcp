@@ -20,6 +20,12 @@ type Client interface {
 
 	// Client 返回原生客户端
 	Client() *redis.Client
+
+	// DBSize 获取数据库大小（key数量）
+	DBSize(ctx context.Context) (int64, error)
+
+	// Info 获取 Redis 信息
+	Info(ctx context.Context, section string) (string, error)
 }
 
 // redisClient Redis 客户端实现
@@ -65,4 +71,14 @@ func (c *redisClient) Close() error {
 // Client 返回原生客户端
 func (c *redisClient) Client() *redis.Client {
 	return c.client
+}
+
+// DBSize 获取数据库大小（key数量）
+func (c *redisClient) DBSize(ctx context.Context) (int64, error) {
+	return c.client.DBSize(ctx).Result()
+}
+
+// Info 获取 Redis 信息
+func (c *redisClient) Info(ctx context.Context, section string) (string, error) {
+	return c.client.Info(ctx, section).Result()
 }
