@@ -62,10 +62,10 @@ try {
         Print-Info "Redis not running"
     }
 
-    # Stop dnd-client server
-    $clientProcess = Get-Process -Name dnd-client -ErrorAction SilentlyContinue
+    # Stop dnd-api server
+    $clientProcess = Get-Process -Name dnd-api -ErrorAction SilentlyContinue
     if ($clientProcess) {
-        Stop-Process -Name dnd-client -Force -ErrorAction SilentlyContinue
+        Stop-Process -Name dnd-api -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 1
         Print-Success "DND client server stopped"
     } else {
@@ -106,7 +106,7 @@ try {
         Remove-Item -Path "bin" -Recurse -Force -ErrorAction SilentlyContinue
     }
     New-Item -ItemType Directory -Path "bin" -Force | Out-Null
-    go build -o bin/dnd-client.exe cmd/client/main.go
+    go build -o bin/dnd-api.exe cmd/api/main.go
     Print-Success "Build successful"
 } catch {
     Print-Error "Build failed: $_"
@@ -156,7 +156,7 @@ Print-Section "Step 6/6: Running API Functional Tests"
 try {
     # Start server in background
     Print-Info "Starting HTTP server..."
-    $serverProcess = Start-Process -FilePath ".\bin\dnd-client.exe" -ArgumentList "server" -WindowStyle Hidden -PassThru
+    $serverProcess = Start-Process -FilePath ".\bin\dnd-api.exe" -ArgumentList "server" -WindowStyle Hidden -PassThru
     Start-Sleep -Seconds 2
 
     # Test health check
@@ -262,7 +262,7 @@ try {
     Print-Error "API functional tests failed: $_"
     # Try to stop server
     try {
-        Stop-Process -Name dnd-client -Force -ErrorAction SilentlyContinue
+        Stop-Process -Name dnd-api -Force -ErrorAction SilentlyContinue
     } catch {}
 }
 

@@ -115,7 +115,7 @@ if (-not $SkipBuild) {
     Write-Step "步骤 3: 构建项目"
 
     try {
-        go build -o bin/dnd-client.exe ./cmd/server
+        go build -o bin/dnd-api.exe ./cmd/api
         if ($LASTEXITCODE -eq 0) {
             Write-Success "构建成功"
         } else {
@@ -137,14 +137,14 @@ $env:LOG_LEVEL = "info"
 $env:REDIS_HOST = "localhost:6379"
 $env:HTTP_PORT = "8080"
 
-if (-not (Test-Path "bin\dnd-client.exe")) {
-    Write-Error "可执行文件未找到: bin\dnd-client.exe"
+if (-not (Test-Path "bin\dnd-api.exe")) {
+    Write-Error "可执行文件未找到: bin\dnd-api.exe"
     Write-Warning "请先运行构建或使用 -SkipBuild 标志"
     exit 1
 }
 
 try {
-    $serverProcess = Start-Process -FilePath "bin\dnd-client.exe" -ArgumentList "-l", "info" -PassThru -NoNewWindow
+    $serverProcess = Start-Process -FilePath "bin\dnd-api.exe" -ArgumentList "-l", "info" -PassThru -NoNewWindow
     Write-Success "服务器已启动 (PID: $($serverProcess.Id))"
 
     # 等待服务器启动

@@ -133,7 +133,7 @@ if (-not $SkipE2E) {
         }
     } catch {
         Write-Warning "未检测到运行中的服务器,跳过E2E测试"
-        Write-Warning "要运行E2E测试,请先启动服务器: .\bin\dnd-client.exe"
+        Write-Warning "要运行E2E测试,请先启动服务器: .\bin\dnd-api.exe"
     }
 } else {
     Write-Warning "跳过E2E测试(使用 -SkipE2E 标志)"
@@ -161,4 +161,4 @@ Write-Output ""
 Write-Output "提示:"
 Write-Output "  - 使用 -Verbose 显示详细输出"
 Write-Output "  - 使用 -SkipE2E 跳过E2E测试"
-Write-Output "  - 要运行E2E测试,请在另一个终端启动服务器: .\bin\dnd-client.exe"
+Write-Output "  - 要运行E2E测试,请在另一个终端启动服务器: .\bin\dnd-api.exe"

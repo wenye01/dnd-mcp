@@ -1,11 +1,11 @@
-# DND MCP Client
+# DND MCP API
 
-> 轻量级 D&D 游戏会话和消息管理服务
+> D&D 游戏会话和消息管理的 HTTP API 服务
 
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**DND MCP Client** 是一个轻量级的有状态协调层，用于管理 D&D 游戏会话和消息。它提供 HTTP API 和 WebSocket 支持实时通信，以 Redis 为主存储，PostgreSQL 为备份。
+**DND MCP API** 是一个轻量级的有状态协调层，用于管理 D&D 游戏会话和消息。它提供 RESTful HTTP API 和 WebSocket 实时通信，以 Redis 为主存储，PostgreSQL 为备份。
 
 ## ✨ 特性
 
@@ -57,8 +57,8 @@ docker run -d --name dnd-redis -p 6379:6379 redis:7-alpine
 # 2. 构建项目
 .\scripts\build.ps1
 
-# 3. 启动服务器
-.\bin\dnd-client.exe
+# 3. 启动 API 服务器
+.\bin\dnd-api.exe
 ```
 
 #### Linux/Mac
@@ -71,8 +71,8 @@ docker run -d --name dnd-redis -p 6379:6379 redis:7-alpine
 chmod +x ./scripts/build.sh
 ./scripts/build.sh
 
-# 3. 启动服务器
-./bin/dnd-client
+# 3. 启动 API 服务器
+./bin/dnd-api
 ```
 
 ### 验证安装
@@ -123,21 +123,26 @@ curl http://localhost:8080/api/system/stats
 ```
 dnd-mcp/
 ├── cmd/              # 应用程序入口
-│   └── server/       # HTTP 服务器
+│   └── api/          # HTTP API 服务器
 ├── internal/         # 私有应用代码
 │   ├── api/          # HTTP API 层
 │   ├── service/      # 业务逻辑层
 │   ├── store/        # 存储层
 │   ├── models/       # 领域模型
+│   ├── persistence/  # 持久化管理
+│   ├── llm/          # LLM 集成
+│   ├── mcp/          # MCP Client 集成
+│   ├── ws/           # WebSocket 服务
 │   ├── monitor/      # 系统监控
-│   └── ...
+│   └── repository/   # 数据仓库接口
 ├── pkg/              # 公共库
 │   ├── config/       # 配置管理
 │   ├── logger/       # 结构化日志
 │   └── errors/       # 错误定义
-├── tests/            # 测试代码
-├── scripts/          # 构建脚本
-└── doc/              # 文档
+├── scripts/          # 构建和测试脚本
+├── doc/              # 文档
+└── bin/              # 编译产物
+    └── dnd-api.exe   # 可执行文件
 ```
 
 详细结构说明: [doc/PROJECT_STRUCTURE.md](doc/PROJECT_STRUCTURE.md)
@@ -306,10 +311,10 @@ DATABASE_URL=postgres://user:password@localhost:5432/dbname
 
 ```bash
 # 开发模式
-go run ./cmd/server/main.go
+go run ./cmd/api/main.go
 
 # 或使用环境变量
-LOG_LEVEL=debug go run ./cmd/server/main.go
+LOG_LEVEL=debug go run ./cmd/api/main.go
 ```
 
 ## 🧪 测试

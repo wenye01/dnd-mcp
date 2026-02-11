@@ -4,11 +4,12 @@
 
 ## 项目概述
 
-**DND MCP Client** 是一个轻量级的有状态协调层，用于管理 D&D 游戏会话和消息。它提供 HTTP API 和 WebSocket 支持实时通信，以 Redis 为主存储，PostgreSQL 为备份。
+**DND MCP API** 是一个轻量级的有状态协调层，用于管理 D&D 游戏会话和消息。它提供 RESTful HTTP API 和 WebSocket 实时通信，以 Redis 为主存储，PostgreSQL 为备份。
 
 - **语言**: Go 1.24+
 - **主要开发环境**: Windows (PowerShell 脚本)
 - **模块**: github.com/dnd-mcp/client
+- **项目定位**: 纯后端 HTTP API 服务
 
 ## 核心架构
 
@@ -20,7 +21,7 @@
 Handler (HTTP) → Service → Store (Redis/PostgreSQL) → Models
 ```
 
-**关键设计决策**: 项目使用适配器模式来桥接存储接口和持久化接口。适配器定义在 `cmd/server/main.go` 中。
+**关键设计决策**: 项目使用适配器模式来桥接存储接口和持久化接口。适配器定义在 `cmd/api/main.go` 中。
 
 ### 存储策略
 
@@ -53,7 +54,7 @@ Handler (HTTP) → Service → Store (Redis/PostgreSQL) → Models
 # 构建项目
 .\scripts\build.ps1
 
-# 输出: bin/dnd-client.exe
+# 输出: bin/dnd-api.exe
 ```
 
 ### 测试 (Windows)
@@ -110,13 +111,13 @@ go test -v ./tests/unit/service/... -run TestSessionCreate
 ### 运行服务器
 
 ```powershell
-# 启动服务器
-.\bin\dnd-client.exe
+# 启动 API 服务器
+.\bin\dnd-api.exe
 
 # 使用环境变量
 $env:LOG_LEVEL="debug"
 $env:REDIS_HOST="localhost:6379"
-.\bin\dnd-client.exe
+.\bin\dnd-api.exe
 ```
 
 ## 配置
@@ -299,7 +300,7 @@ go clean -testcache
 
 ## 需要理解的关键文件
 
-1. **cmd/server/main.go** - 应用程序引导和依赖注入
+1. **cmd/api/main.go** - 应用程序引导和依赖注入
 2. **internal/models/session.go** - 会话领域模型
 3. **internal/models/message.go** - 消息领域模型
 4. **internal/store/interface.go** - 存储接口定义
@@ -330,5 +331,4 @@ go clean -testcache
   - jackc/pgx/v5 (PostgreSQL 驱动)
   - gorilla/websocket (WebSocket 支持)
   - google/uuid (UUID 生成)
-  - spf13/cobra (CLI 框架)
   - stretchr/testify (测试工具)
