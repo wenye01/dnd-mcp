@@ -4,6 +4,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/dnd-mcp/client/internal/models"
@@ -11,6 +12,13 @@ import (
 	"github.com/dnd-mcp/client/pkg/errors"
 	"github.com/google/uuid"
 )
+
+// SessionPersistenceWriter 关键操作同步持久化接口
+// 用于在关键操作时同步写入备份存储（如 PostgreSQL）
+type SessionPersistenceWriter interface {
+	Create(ctx context.Context, session *models.Session) error
+	Update(ctx context.Context, session *models.Session) error
+}
 
 // SessionServiceInterface 会话服务接口
 type SessionServiceInterface interface {
@@ -23,13 +31,25 @@ type SessionServiceInterface interface {
 
 // SessionService 会话业务逻辑
 type SessionService struct {
-	sessionRepo repository.SessionRepository
+	sessionRepo  repository.SessionRepository
+	pgWriter     SessionPersistenceWriter // PostgreSQL 同步持久化（可选）
 }
 
 // NewSessionService 创建会话服务
 func NewSessionService(sessionRepo repository.SessionRepository) *SessionService {
 	return &SessionService{
 		sessionRepo: sessionRepo,
+	}
+}
+
+// NewSessionServiceWithPersistence 创建带同步持久化的会话服务
+func NewSessionServiceWithPersistence(
+	sessionRepo repository.SessionRepository,
+	pgWriter SessionPersistenceWriter,
+) *SessionService {
+	return &SessionService{
+		sessionRepo: sessionRepo,
+		pgWriter:    pgWriter,
 	}
 }
 
@@ -71,9 +91,19 @@ func (s *SessionService) CreateSession(ctx context.Context, req *CreateSessionRe
 		Status:       "active",
 	}
 
-	// 保存到存储
+	// 保存到 Redis（主存储）
 	if err := s.sessionRepo.Create(ctx, session); err != nil {
 		return nil, fmt.Errorf("创建会话失败: %w", err)
+	}
+
+	// 同步持久化到 PostgreSQL（关键操作）
+	if s.pgWriter != nil {
+		if err := s.pgWriter.Create(ctx, session); err != nil {
+			// 持久化失败只记录日志，不影响主流程
+			log.Printf("[SessionService] 同步持久化会话 %s 失败: %v", session.ID, err)
+		} else {
+			log.Printf("[SessionService] 会话 %s 已同步持久化到 PostgreSQL", session.ID)
+		}
 	}
 
 	return session, nil
@@ -139,9 +169,19 @@ func (s *SessionService) UpdateSession(ctx context.Context, sessionID string, re
 	}
 	session.UpdatedAt = time.Now()
 
-	// 保存更新
+	// 保存更新到 Redis（主存储）
 	if err := s.sessionRepo.Update(ctx, session); err != nil {
 		return nil, fmt.Errorf("更新会话失败: %w", err)
+	}
+
+	// 同步持久化到 PostgreSQL（关键操作）
+	if s.pgWriter != nil {
+		if err := s.pgWriter.Update(ctx, session); err != nil {
+			// 持久化失败只记录日志，不影响主流程
+			log.Printf("[SessionService] 同步持久化更新会话 %s 失败: %v", session.ID, err)
+		} else {
+			log.Printf("[SessionService] 会话 %s 更新已同步持久化到 PostgreSQL", session.ID)
+		}
 	}
 
 	return session, nil
@@ -150,7 +190,7 @@ func (s *SessionService) UpdateSession(ctx context.Context, sessionID string, re
 // DeleteSession 删除会话
 func (s *SessionService) DeleteSession(ctx context.Context, sessionID string) error {
 	// 检查会话是否存在
-	_, err := s.sessionRepo.Get(ctx, sessionID)
+	session, err := s.sessionRepo.Get(ctx, sessionID)
 	if err != nil {
 		return err
 	}
@@ -158,6 +198,19 @@ func (s *SessionService) DeleteSession(ctx context.Context, sessionID string) er
 	// 软删除
 	if err := s.sessionRepo.Delete(ctx, sessionID); err != nil {
 		return fmt.Errorf("删除会话失败: %w", err)
+	}
+
+	// 同步持久化到 PostgreSQL（关键操作）- 标记为已删除
+	if s.pgWriter != nil {
+		session.DeletedAt = time.Now()
+		session.Status = "deleted"
+		session.UpdatedAt = time.Now()
+		if err := s.pgWriter.Update(ctx, session); err != nil {
+			// 持久化失败只记录日志，不影响主流程
+			log.Printf("[SessionService] 同步持久化删除会话 %s 失败: %v", sessionID, err)
+		} else {
+			log.Printf("[SessionService] 会话 %s 删除已同步持久化到 PostgreSQL", sessionID)
+		}
 	}
 
 	return nil

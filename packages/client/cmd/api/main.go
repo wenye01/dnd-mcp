@@ -80,6 +80,8 @@ func main() {
 
 	// 初始化 AdminHandler（如果 PostgreSQL 可用）
 	var adminHandler *handler.AdminHandler
+	var postgresSessionStore *postgres.PostgresSessionStore
+
 	if postgresClient != nil {
 		// 创建 PostgreSQL 连接用于迁移器（使用 pgx）
 		pgConn, err := pgx.Connect(ctx, fmt.Sprintf(
@@ -101,7 +103,7 @@ func main() {
 			}
 
 			// 初始化 PostgreSQL 存储
-			postgresSessionStore := postgres.NewPostgresSessionStore(postgresClient)
+			postgresSessionStore = postgres.NewPostgresSessionStore(postgresClient)
 			postgresMessageStore := postgres.NewPostgresMessageStore(postgresClient)
 
 			// 创建Redis存储适配器以实现persistence接口
@@ -134,9 +136,17 @@ func main() {
 	// 注意：adminHandler 目前未在路由中使用，但保留以备将来使用
 	_ = adminHandler
 
-	// 创建 SessionService
-	// sessionStore 已经实现了 repository.SessionRepository 接口
-	sessionService := service.NewSessionService(sessionStore)
+	// 创建 SessionService（带同步持久化）
+	var sessionService *service.SessionService
+	if postgresSessionStore != nil {
+		// 使用带同步持久化的构造函数
+		sessionService = service.NewSessionServiceWithPersistence(sessionStore, postgresSessionStore)
+		log.Println("✓ SessionService 已启用关键操作同步持久化")
+	} else {
+		// 使用普通构造函数（仅 Redis）
+		sessionService = service.NewSessionService(sessionStore)
+		log.Println("⚠ SessionService 仅使用 Redis，未启用同步持久化")
+	}
 
 	// 设置 Gin 模式
 	if cfg.Log.Level == "debug" {
