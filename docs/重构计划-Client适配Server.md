@@ -1,0 +1,677 @@
+# 重构计划: Client 适配 Server 设计
+
+## 1. 重构必要性分析
+
+### 1.1 当前状态
+
+#### 设计文档定义
+
+**完整架构（设计目标）**：
+```
+Handler (HTTP 处理器)
+  ↓
+Service (业务逻辑层)
+  ├─ SessionService
+  ├─ ChatService
+  └─ OrchestratorService
+  ↓
+Repository (数据访问接口)
+  ├─ SessionRepository
+  └─ MessageRepository
+  ↓
+Store (存储实现)
+  ├─ RedisStore (主存储)
+  └─ PostgresStore (备份)
+  ↓
+Models (领域模型)
+```
+
+**数据存储设计**：
+- Client 存储: Session（会话元数据）+ Message（对话历史）
+- Server 存储: Character（角色）+ Combat（战斗）+ Map（地图）+ GameState（状态）
+
+**对话历史**：Client 存储对话历史，Server 不依赖
+
+#### 当前代码实现
+
+**实际架构**：
+```
+Handler (HTTP 处理器)
+  ↓
+Service (部分实现)
+  ├─ SessionService ✓
+  └─ ContextBuilder ✓（简化版）
+  ↓
+Repository (已有接口)
+  └─ SessionRepository ✓
+  ↓
+Store (存储实现)
+  ├─ RedisStore ✓
+  └─ PostgresStore ✓
+  ↓
+Models ✓
+```
+
+### 1.2 差异点分析
+
+| 设计要求 | 当前实现 | 状态 | 影响 |
+|----------|----------|------|------|
+| **架构分层** | Handler → Service → Repository → Store | Handler → Service → Store | ⚠️ 部分 | 中 |
+| **SessionService** | 封装会话业务逻辑 | ✅ 已实现 | ✓ 一致 | - |
+| **ChatService** | 封装聊天业务逻辑 | ❌ 未实现（在 Handler 中） | ⚠️ 偏差 | 高 |
+| **MessageRepository** | 消息数据访问接口 | ❌ 未定义 | ⚠️ 缺失 | 中 |
+| **对话历史存储** | Client 存储 | ✅ Redis/PG | ✓ 一致 | - |
+| **上下文构建** | Orchestrator 服务 | ✅ ContextBuilder（简化版） | ⚠️ 简化 | 中 |
+| **MCP 集成** | 调用 Server 工具 | ✅ MCPClient | ✓ 基础实现 | 低 |
+| **WebSocket** | 实时推送 | ✅ Hub + Connection | ✓ 基础实现 | 低 |
+
+### 1.3 Server 设计带来的新要求
+
+根据 `docs/server-design/关键技术点讨论.md`，Server 设计有以下关键决策：
+
+#### 1.3.1 对话历史存储（重大变更）
+
+| 决策项 | Server 设计 |
+|--------|------------|
+| **对话历史存储位置** | **Server 统一存储** |
+| **Client 是否存储** | 不存储（可选缓存） |
+| **存档粒度** | 自动存档（每条消息） |
+| **Server LLM 依赖** | 不依赖，保持简单 |
+| **上下文压缩策略** | Server 提供简单策略（滑动窗口），高级压缩由 Client 自行处理 |
+
+**这与当前 Client 设计存在冲突！**
+
+当前 Client：
+- 自己存储对话历史到 Redis/PostgreSQL
+- ContextBuilder 从本地存储加载历史
+
+Server 设计：
+- Server 统一存储对话历史
+- Client 通过 `get_context(campaign_id)` 获取上下文
+- Client 可选缓存，但主存储在 Server
+
+#### 1.3.2 概念映射
+
+| Client 当前术语 | Server 新术语 | 说明 |
+|----------------|--------------|------|
+| Session | Campaign | 会话 → 战役 |
+| mcp_server_url | 内置配置 | Server URL 不再由用户指定 |
+| Message | 仍由 Server 管理 | Client 不再存储 |
+
+### 1.4 重构理由
+
+| 问题 | 影响 | 紧急程度 |
+|------|------|----------|
+| Server 统一存储对话历史，Client 存储设计需调整 | 高 | 🔴 高 |
+| ChatService 未提取，业务逻辑在 Handler | 中 | 🟡 中 |
+| 缺少 MessageRepository 接口 | 中 | 🟡 中 |
+| 术语不一致（Session vs Campaign） | 低 | 🟢 低 |
+
+### 1.5 不重构的后果
+
+1. **与 Server 集成困难**：对话历史存储冲突，导致数据不一致
+2. **代码维护成本高**：业务逻辑分散在 Handler 中
+3. **难以测试**：缺少 ChatService 层难以进行单元测试
+4. **扩展性差**：未来添加新功能需要大改
+
+---
+
+## 2. 重构目标
+
+### 2.1 期望状态
+
+#### 2.1.1 适配 Server 设计
+
+```
+用户输入
+  ↓
+Client（协调层）
+  ├─ 1. 获取上下文：调用 Server get_context(campaign_id)
+  ├─ 2. 可选：自行压缩上下文
+  ├─ 3. 调用 LLM
+  ├─ 4. 如果有 Tool Call → 调用 Server MCP Tool
+  ├─ 5. 保存对话：调用 Server save_message()
+  └─ 6. 返回结果给用户
+```
+
+#### 2.1.2 新的数据流
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                         新架构                                        │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                       │
+│  Client                                     Server                    │
+│  ┌────────────────────┐                    ┌────────────────────┐    │
+│  │ 不存储对话历史       │                    │ 统一存储            │    │
+│  │                    │                    │ - 对话历史          │    │
+│  │ 可选缓存            │                    │ - 游戏状态          │    │
+│  │                    │                    │ - 角色数据          │    │
+│  │ 1. get_context()   │ ─────────────────> │ 返回压缩后上下文     │    │
+│  │ 2. 调用 LLM        │                    │                    │    │
+│  │ 3. save_message()  │ ─────────────────> │ 保存对话           │    │
+│  │ 4. 调用 MCP Tool   │ ─────────────────> │ 执行规则引擎        │    │
+│  └────────────────────┘                    └────────────────────┘    │
+│                                                                       │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+#### 2.1.3 Client 新职责
+
+| 职责 | 说明 |
+|------|------|
+| **战役管理** | 创建/查询/删除 Campaign（对应原 Session） |
+| **LLM 编排** | 调用 LLM，处理 Tool Call |
+| **Server 协调** | 调用 Server 的 MCP Tools |
+| **WebSocket 推送** | 实时推送事件给前端 |
+| **可选缓存** | 本地缓存对话历史（提升性能） |
+| **高级上下文压缩** | 使用自己的 LLM 能力压缩上下文 |
+
+#### 2.1.4 Client 不再负责
+
+| 职责 | 转移到 |
+|------|--------|
+| **对话历史主存储** | Server |
+| **游戏状态管理** | Server |
+| **角色数据管理** | Server |
+
+### 2.2 成功标准
+
+- [ ] 移除 Client 本地的 Message 存储（Redis/PostgreSQL）
+- [ ] 实现通过 Server API 管理对话历史
+- [ ] 提取 ChatService，业务逻辑从 Handler 分离
+- [ ] 添加 MessageRepository 接口（用于可选缓存）
+- [ ] Session 重命名为 Campaign（或保持兼容）
+- [ ] 所有测试通过
+- [ ] 无新增技术债务
+
+### 2.3 约束条件
+
+- 保持 API 兼容性: 是（前端 API 端点不变）
+- 数据迁移需求: 否（开发阶段，无生产数据）
+- Server 可用性: Server 需要先开发相关 API
+- 渐进式重构: 支持新旧模式切换
+
+---
+
+## 3. 重构规模评估
+
+| 维度 | 评估 |
+|------|------|
+| **规模级别** | **L4**（模块重构） |
+| **影响文件数** | 约 15-20 个 |
+| **影响接口数** | 5-8 个 |
+| **测试覆盖** | 需要更新 |
+| **风险等级** | **中** |
+
+---
+
+## 4. 重构步骤
+
+### Step 1: 抽取 ChatService（前置条件）
+
+**目标**: 将聊天相关业务逻辑从 Handler 提取到 Service 层
+
+**操作**:
+| 类型 | 文件 | 改动说明 |
+|------|------|----------|
+| 新增 | `internal/service/chat.go` | 创建 ChatService，包含 SendMessage、HandleToolCalls 方法 |
+| 修改 | `internal/service/chat.go` | 定义 ChatServiceInterface |
+| 修改 | `internal/api/handler/message.go` | 重构为调用 ChatService |
+| 新增 | `tests/unit/service/chat_test.go` | 添加单元测试 |
+
+**验证**:
+```powershell
+go test -v ./tests/unit/service/...
+go test -v ./tests/integration/...
+```
+
+**回滚方案**: 保留原 Handler 代码，新 Service 可独立回滚
+
+---
+
+### Step 2: 添加 MessageRepository 接口
+
+**目标**: 定义消息数据访问接口，为后续适配做准备
+
+**操作**:
+| 类型 | 文件 | 改动说明 |
+|------|------|----------|
+| 新增 | `internal/repository/message.go` | 定义 MessageRepository 接口 |
+| 修改 | `internal/store/interface.go` | MessageStore 实现 MessageRepository |
+
+**MessageRepository 接口设计**:
+```go
+type MessageRepository interface {
+    // Create 保存消息
+    Create(ctx context.Context, message *models.Message) error
+
+    // Get 获取消息
+    Get(ctx context.Context, sessionID, messageID string) (*models.Message, error)
+
+    // List 获取消息列表
+    List(ctx context.Context, sessionID string, limit int) ([]*models.Message, error)
+
+    // ListSince 按时间范围获取消息
+    ListSince(ctx context.Context, sessionID string, since time.Time, limit int) ([]*models.Message, error)
+}
+```
+
+**验证**:
+```powershell
+go build ./...
+go test -v ./...
+```
+
+**回滚方案**: 接口定义不影响现有代码
+
+---
+
+### Step 3: 创建 Server API Client（核心变更）
+
+**目标**: 实现 Client 调用 Server 对话历史 API
+
+**操作**:
+| 类型 | 文件 | 改动说明 |
+|------|------|----------|
+| 新增 | `internal/server/client.go` | Server API 客户端接口 |
+| 新增 | `internal/server/http.go` | HTTP 实现 |
+| 新增 | `internal/server/mock.go` | Mock 实现（测试用） |
+| 新增 | `internal/server/types.go` | 类型定义 |
+
+**ServerClient 接口设计**:
+```go
+// ServerClient Server API 客户端接口
+type ServerClient interface {
+    // Campaign 管理
+    CreateCampaign(ctx context.Context, req *CreateCampaignRequest) (*Campaign, error)
+    GetCampaign(ctx context.Context, campaignID string) (*Campaign, error)
+    DeleteCampaign(ctx context.Context, campaignID string) error
+
+    // 对话历史（核心变更）
+    GetContext(ctx context.Context, campaignID string) (*Context, error)
+    GetRawContext(ctx context.Context, campaignID string) (*RawContext, error)
+    SaveMessage(ctx context.Context, campaignID string, msg *Message) error
+
+    // MCP Tools
+    CallTool(ctx context.Context, campaignID, toolName string, args map[string]any) (map[string]any, error)
+}
+```
+
+**Context 类型设计**:
+```go
+// Context 压缩后的上下文（Server 返回）
+type Context struct {
+    CampaignID   string        `json:"campaign_id"`
+    GameState    *GameState    `json:"game_state"`
+    Messages     []Message     `json:"messages"`      // 已压缩的消息
+    Summary      string        `json:"summary"`       // 摘要（如果有）
+}
+
+// RawContext 原始上下文（供高级 Client 使用）
+type RawContext struct {
+    CampaignID   string        `json:"campaign_id"`
+    GameState    *GameState    `json:"game_state"`
+    Messages     []Message     `json:"messages"`      // 原始消息列表
+}
+
+// Message 对话消息
+type Message struct {
+    ID        string                 `json:"id"`
+    Role      string                 `json:"role"`      // user, assistant, system, tool
+    Content   string                 `json:"content"`
+    ToolCalls []ToolCall             `json:"tool_calls,omitempty"`
+    CreatedAt time.Time              `json:"created_at"`
+}
+
+// GameState 游戏状态摘要
+type GameState struct {
+    Location   string `json:"location"`
+    GameTime   string `json:"game_time"`
+    Combat     string `json:"combat"`     // active, inactive
+    CurrentTurn string `json:"current_turn,omitempty"`
+}
+```
+
+**验证**:
+```powershell
+go test -v ./internal/server/...
+```
+
+**回滚方案**: 新模块，可独立删除
+
+---
+
+### Step 4: 重构 ContextBuilder 使用 Server API
+
+**目标**: ContextBuilder 从 Server 获取上下文，而非本地存储
+
+**操作**:
+| 类型 | 文件 | 改动说明 |
+|------|------|----------|
+| 修改 | `internal/service/context_builder.go` | 注入 ServerClient，改为从 Server 获取上下文 |
+
+**新 ContextBuilder 设计**:
+```go
+type ContextBuilder struct {
+    serverClient  server.ServerClient  // Server API 客户端
+    useRawContext bool                  // 是否使用原始上下文
+    cache         MessageCache          // 可选缓存
+}
+
+// BuildContext 构建对话上下文
+func (b *ContextBuilder) BuildContext(ctx context.Context, campaignID, userMessage string) ([]llm.Message, error) {
+    // 1. 从 Server 获取上下文
+    var serverCtx *server.Context
+    var err error
+
+    if b.useRawContext {
+        // 完整模式：获取原始数据，自行压缩
+        rawCtx, err := b.serverClient.GetRawContext(ctx, campaignID)
+        if err != nil {
+            return nil, err
+        }
+        serverCtx = b.compressContext(rawCtx)  // 使用 Client LLM 压缩
+    } else {
+        // 简化模式：使用 Server 返回的压缩上下文
+        serverCtx, err = b.serverClient.GetContext(ctx, campaignID)
+        if err != nil {
+            return nil, err
+        }
+    }
+
+    // 2. 转换为 LLM 消息格式
+    messages := b.convertToLLMMessages(serverCtx)
+
+    // 3. 添加当前用户消息
+    messages = append(messages, llm.Message{
+        Role:    "user",
+        Content: userMessage,
+    })
+
+    return messages, nil
+}
+```
+
+**验证**:
+```powershell
+go test -v ./tests/unit/service/...
+```
+
+**回滚方案**: 保留旧实现，通过配置切换
+
+---
+
+### Step 5: 重构 ChatService 使用 Server API 保存消息
+
+**目标**: 消息通过 Server API 保存，而非本地存储
+
+**操作**:
+| 类型 | 文件 | 改动说明 |
+|------|------|----------|
+| 修改 | `internal/service/chat.go` | 注入 ServerClient，改为调用 Server 保存消息 |
+
+**新 SendMessage 流程**:
+```go
+func (s *ChatService) SendMessage(ctx context.Context, campaignID string, req *SendMessageRequest) (*Message, error) {
+    // 1. 保存用户消息到 Server
+    userMsg := &server.Message{
+        Role:      "user",
+        Content:   req.Content,
+        PlayerID:  req.PlayerID,
+        CreatedAt: time.Now(),
+    }
+    if err := s.serverClient.SaveMessage(ctx, campaignID, userMsg); err != nil {
+        return nil, err
+    }
+
+    // 2. 构建上下文（从 Server 获取）
+    messages, err := s.contextBuilder.BuildContext(ctx, campaignID, req.Content)
+    if err != nil {
+        return nil, err
+    }
+
+    // 3. 调用 LLM
+    llmResp, err := s.llmClient.Chat(ctx, &llm.ChatRequest{Messages: messages})
+    if err != nil {
+        return nil, err
+    }
+
+    // 4. 处理响应（可能包含 Tool Calls）
+    // ...
+
+    // 5. 保存助手消息到 Server
+    assistantMsg := &server.Message{
+        Role:      "assistant",
+        Content:   llmResp.Choices[0].Message.Content,
+        CreatedAt: time.Now(),
+    }
+    if err := s.serverClient.SaveMessage(ctx, campaignID, assistantMsg); err != nil {
+        return nil, err
+    }
+
+    return assistantMsg, nil
+}
+```
+
+**验证**:
+```powershell
+go test -v ./tests/unit/service/...
+go test -v ./tests/integration/...
+```
+
+**回滚方案**: 通过配置切换新旧模式
+
+---
+
+### Step 6: 添加可选缓存层
+
+**目标**: 提供本地缓存选项，减少 Server 调用
+
+**操作**:
+| 类型 | 文件 | 改动说明 |
+|------|------|----------|
+| 新增 | `internal/cache/interface.go` | 缓存接口定义 |
+| 新增 | `internal/cache/memory.go` | 内存缓存实现 |
+| 新增 | `internal/cache/redis.go` | Redis 缓存实现 |
+| 修改 | `internal/service/context_builder.go` | 可选注入缓存 |
+
+**Cache 接口设计**:
+```go
+// MessageCache 消息缓存接口
+type MessageCache interface {
+    // Get 获取缓存的消息
+    Get(ctx context.Context, campaignID string) ([]*Message, error)
+
+    // Set 设置缓存
+    Set(ctx context.Context, campaignID string, messages []*Message) error
+
+    // Invalidate 使缓存失效
+    Invalidate(ctx context.Context, campaignID string) error
+}
+```
+
+**验证**:
+```powershell
+go test -v ./internal/cache/...
+```
+
+**回滚方案**: 缓存是可选的，不影响主流程
+
+---
+
+### Step 7: 术语调整与兼容层（可选）
+
+**目标**: 保持 API 兼容性，支持 Session/Campaign 双术语
+
+**操作**:
+| 类型 | 文件 | 改动说明 |
+|------|------|----------|
+| 修改 | `internal/models/session.go` | 添加 Campaign 别名 |
+| 修改 | `internal/api/handler/session.go` | 支持 /api/sessions 和 /api/campaigns |
+| 修改 | `internal/api/server.go` | 添加新路由 |
+
+**验证**:
+```powershell
+go test -v ./tests/e2e/...
+```
+
+**回滚方案**: 路由层兼容，可独立回滚
+
+---
+
+### Step 8: 清理遗留代码
+
+**目标**: 移除不再使用的本地消息存储代码
+
+**操作**:
+| 类型 | 文件 | 改动说明 |
+|------|------|----------|
+| 删除 | `internal/store/redis/message.go` | 不再需要本地消息存储（保留可选） |
+| 删除 | `internal/store/postgres/message.go` | 不再需要本地消息存储（保留可选） |
+| 修改 | `cmd/api/main.go` | 移除 MessageStore 初始化 |
+| 修改 | `docs/系统详细设计.md` | 更新设计文档 |
+
+**注意**: 这一步应该在 Server 完全就绪后再执行
+
+**验证**:
+```powershell
+.\scripts\test-all.ps1
+```
+
+**回滚方案**: Git revert
+
+---
+
+## 5. 测试策略
+
+### 5.1 测试范围
+
+- **需要运行的测试**:
+  - `tests/unit/service/chat_test.go` - 新增
+  - `tests/unit/service/context_builder_test.go` - 更新
+  - `tests/unit/server/*_test.go` - 新增
+  - `tests/integration/api/*_test.go` - 更新
+  - `tests/e2e/api_test.go` - 更新
+
+- **需要新增的测试**:
+  - ServerClient 接口测试
+  - ChatService 单元测试
+  - 缓存层测试
+
+### 5.2 验证命令
+
+```powershell
+# 单元测试
+go test -v ./tests/unit/...
+
+# 集成测试
+go test -v ./tests/integration/...
+
+# E2E 测试
+.\scripts\test-e2e.ps1
+
+# 完整测试
+.\scripts\test-all.ps1
+```
+
+---
+
+## 6. 风险评估
+
+| 风险 | 概率 | 影响 | 缓解措施 |
+|------|------|------|----------|
+| Server API 未就绪 | 高 | 高 | 使用 Mock Server，先开发接口层 |
+| 新旧模式切换问题 | 中 | 中 | 提供配置开关，渐进式迁移 |
+| 性能下降（网络调用） | 中 | 中 | 添加可选缓存层 |
+| 测试覆盖不足 | 中 | 中 | 每步验证后再进行下一步 |
+| 术语混淆 | 低 | 低 | 文档说明，代码注释 |
+
+---
+
+## 7. 执行建议
+
+### 7.1 前置准备
+
+- [ ] 确认 Server API 设计已定稿
+- [ ] 创建功能分支
+- [ ] 通知相关开发者
+
+### 7.2 执行顺序
+
+1. **Step 1** → 验证 → 提交（独立，可先执行）
+2. **Step 2** → 验证 → 提交（独立，可先执行）
+3. **Step 3** → 验证 → 提交（依赖 Server API 设计）
+4. **Step 4** → 验证 → 提交（依赖 Step 3）
+5. **Step 5** → 验证 → 提交（依赖 Step 4）
+6. **Step 6** → 验证 → 提交（可选，独立）
+7. **Step 7** → 验证 → 提交（可选，独立）
+8. **Step 8** → 验证 → 提交（最后，Server 就绪后）
+
+### 7.3 提交信息格式
+
+```
+refactor(client): 抽取 ChatService 业务逻辑
+
+- 从 MessageHandler 提取 SendMessage 逻辑到 ChatService
+- 定义 ChatServiceInterface 接口
+- 添加单元测试
+
+Generated with [Claude Code](https://claude.ai/code)
+via [Happy](https://happy.engineering)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+Co-Authored-By: Happy <yesreply@happy.engineering>
+```
+
+---
+
+## 8. 关键决策点
+
+### 8.1 是否需要重构？
+
+**结论: 需要重构**
+
+原因：
+1. Server 设计决定统一存储对话历史，Client 当前设计与 Server 设计冲突
+2. 业务逻辑在 Handler 中，不利于测试和维护
+3. 术语不一致（Session vs Campaign）
+
+### 8.2 重构时机？
+
+**建议: 分阶段执行**
+
+| 阶段 | 步骤 | 时机 | 依赖 |
+|------|------|------|------|
+| **阶段 A** | Step 1-2 | 立即执行 | 无 |
+| **阶段 B** | Step 3-5 | Server API 就绪后 | Server 开发 |
+| **阶段 C** | Step 6-7 | 可选 | 无 |
+| **阶段 D** | Step 8 | Server 完全就绪后 | Server 集成测试 |
+
+### 8.3 是否保留本地存储？
+
+**建议: 保留作为可选缓存**
+
+- 主流程：通过 Server API 管理对话历史
+- 缓存层：可选的本地缓存（内存或 Redis）
+- 好处：减少网络调用，提升响应速度
+
+---
+
+## 9. 总结
+
+本次重构主要解决以下问题：
+
+1. **适配 Server 设计**：Server 统一存储对话历史，Client 需要调整
+2. **代码架构优化**：提取 ChatService，业务逻辑与 Handler 分离
+3. **接口规范化**：添加 MessageRepository 接口
+4. **可扩展性**：添加缓存层，支持完整模式和简化模式
+
+重构规模为 **L4（模块重构）**，风险等级为 **中**，建议分阶段执行。
+
+---
+
+**下一步行动**：
+1. 确认 Server API 设计是否已定稿
+2. 执行 Step 1（抽取 ChatService）
+3. 执行 Step 2（添加 MessageRepository 接口）

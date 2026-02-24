@@ -1,7 +1,6 @@
 ---
 name: plan
 description: 将详细设计转化为增量开发计划。按需求分解为任务，每个任务是完整的垂直切片（数据层→业务层→接口层→测试层），可独立开发、测试、验证。相关任务组成里程碑。
-disable-model-invocation: true
 allowed-tools: Read, Glob, Grep, Write, Edit
 argument-hint: [design-doc]
 ---

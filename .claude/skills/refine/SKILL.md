@@ -1,7 +1,6 @@
 ---
 name: refine
 description: 将高层次设计按粒度迭代细化为详细设计书。每轮细化所有模块的同一层级，完成后进行一致性和完整性审视。
-disable-model-invocation: true
 allowed-tools: Read, Glob, Grep, Write, Edit
 argument-hint: [design-doc]
 ---

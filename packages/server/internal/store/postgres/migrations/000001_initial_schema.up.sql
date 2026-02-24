@@ -5,7 +5,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Campaigns table
-CREATE TABLE campaigns (
+CREATE TABLE IF NOT EXISTS campaigns (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
     description TEXT,
@@ -17,11 +17,11 @@ CREATE TABLE campaigns (
     deleted_at TIMESTAMP WITH TIME ZONE
 );
 
-CREATE INDEX idx_campaigns_dm_id ON campaigns(dm_id);
-CREATE INDEX idx_campaigns_status ON campaigns(status);
+CREATE INDEX IF NOT EXISTS idx_campaigns_dm_id ON campaigns(dm_id);
+CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);
 
 -- Characters table
-CREATE TABLE characters (
+CREATE TABLE IF NOT EXISTS characters (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
@@ -58,12 +58,12 @@ CREATE TABLE characters (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_characters_campaign_id ON characters(campaign_id);
-CREATE INDEX idx_characters_is_npc ON characters(is_npc);
-CREATE INDEX idx_characters_player_id ON characters(player_id);
+CREATE INDEX IF NOT EXISTS idx_characters_campaign_id ON characters(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_characters_is_npc ON characters(is_npc);
+CREATE INDEX IF NOT EXISTS idx_characters_player_id ON characters(player_id);
 
 -- Combats table
-CREATE TABLE combats (
+CREATE TABLE IF NOT EXISTS combats (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
     status VARCHAR(50) DEFAULT 'active',
@@ -76,11 +76,11 @@ CREATE TABLE combats (
     ended_at TIMESTAMP WITH TIME ZONE
 );
 
-CREATE INDEX idx_combats_campaign_id ON combats(campaign_id);
-CREATE INDEX idx_combats_status ON combats(status);
+CREATE INDEX IF NOT EXISTS idx_combats_campaign_id ON combats(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_combats_status ON combats(status);
 
 -- Maps table
-CREATE TABLE maps (
+CREATE TABLE IF NOT EXISTS maps (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
@@ -93,12 +93,12 @@ CREATE TABLE maps (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_maps_campaign_id ON maps(campaign_id);
-CREATE INDEX idx_maps_type ON maps(type);
-CREATE INDEX idx_maps_parent_id ON maps(parent_id);
+CREATE INDEX IF NOT EXISTS idx_maps_campaign_id ON maps(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_maps_type ON maps(type);
+CREATE INDEX IF NOT EXISTS idx_maps_parent_id ON maps(parent_id);
 
 -- Game states table
-CREATE TABLE game_states (
+CREATE TABLE IF NOT EXISTS game_states (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE UNIQUE,
     game_time JSONB NOT NULL,
@@ -110,10 +110,10 @@ CREATE TABLE game_states (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_game_states_campaign_id ON game_states(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_game_states_campaign_id ON game_states(campaign_id);
 
 -- Messages table
-CREATE TABLE messages (
+CREATE TABLE IF NOT EXISTS messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
     role VARCHAR(50) NOT NULL,
@@ -123,8 +123,8 @@ CREATE TABLE messages (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_messages_campaign_id ON messages(campaign_id);
-CREATE INDEX idx_messages_created_at ON messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_campaign_id ON messages(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC);
 
 -- Updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -135,15 +135,23 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Apply updated_at triggers
-CREATE TRIGGER update_campaigns_updated_at BEFORE UPDATE ON campaigns
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_characters_updated_at BEFORE UPDATE ON characters
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_maps_updated_at BEFORE UPDATE ON maps
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_game_states_updated_at BEFORE UPDATE ON game_states
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- Apply updated_at triggers (use DO blocks for idempotency)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_campaigns_updated_at') THEN
+        CREATE TRIGGER update_campaigns_updated_at BEFORE UPDATE ON campaigns
+            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_characters_updated_at') THEN
+        CREATE TRIGGER update_characters_updated_at BEFORE UPDATE ON characters
+            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_maps_updated_at') THEN
+        CREATE TRIGGER update_maps_updated_at BEFORE UPDATE ON maps
+            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_game_states_updated_at') THEN
+        CREATE TRIGGER update_game_states_updated_at BEFORE UPDATE ON game_states
+            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+END $$;

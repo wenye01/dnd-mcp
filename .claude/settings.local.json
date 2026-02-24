@@ -64,9 +64,21 @@
       "Bash(Select-Object:*)",
       "Bash(gofmt:*)",
       "Bash(test:*)",
-      "Bash(Remove-Item:*)"
+      "Bash(Remove-Item:*)",
+      "Bash(Get-ChildItem:*)",
+      "Bash($null)",
+      "mcp__zread__get_repo_structure",
+      "mcp__zread__read_file",
+      "WebSearch",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(grep:*)",
+      "Bash(PGPASSWORD=070831 psql:*)",
+      "Bash(head:*)"
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "spinnerTipsEnabled": false
 }

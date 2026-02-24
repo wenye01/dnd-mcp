@@ -1,7 +1,6 @@
 ---
 name: design
 description: 进行高层次架构设计和文档编写。输出作为 refine skill 的输入。仅在用户明确要求实现时才编写代码。
-disable-model-invocation: true
 allowed-tools: Read, Glob, Grep
 argument-hint: [design-topic]
 ---

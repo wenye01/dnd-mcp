@@ -1,7 +1,6 @@
 ---
 name: elicit
 description: 需求澄清与审查。通过严格审视、质疑和交互，将模糊的用户描述转化为严谨、完整、无歧义的需求文档，作为设计的输入基础。
-disable-model-invocation: true
 allowed-tools: Read, Glob, Grep
 argument-hint: [requirement-description]
 ---

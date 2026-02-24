@@ -69,3 +69,48 @@ type GameStateStore interface {
 	// Delete deletes a game state
 	Delete(ctx context.Context, campaignID string) error
 }
+
+// CharacterStore character storage interface
+type CharacterStore interface {
+	// Create creates a new character
+	Create(ctx context.Context, character *models.Character) error
+
+	// Get retrieves a character by ID
+	Get(ctx context.Context, id string) (*models.Character, error)
+
+	// GetByCampaignAndID retrieves a character by campaign ID and character ID
+	GetByCampaignAndID(ctx context.Context, campaignID, id string) (*models.Character, error)
+
+	// List lists characters with optional filters
+	List(ctx context.Context, filter *CharacterFilter) ([]*models.Character, error)
+
+	// Update updates a character
+	Update(ctx context.Context, character *models.Character) error
+
+	// Delete deletes a character
+	Delete(ctx context.Context, id string) error
+
+	// Count counts characters with optional filter
+	Count(ctx context.Context, filter *CharacterFilter) (int64, error)
+}
+
+// CharacterFilter character list filter
+type CharacterFilter struct {
+	// CampaignID filter by campaign ID (optional)
+	CampaignID string
+
+	// IsNPC filter by NPC status (optional, nil means all)
+	IsNPC *bool
+
+	// PlayerID filter by player ID (optional)
+	PlayerID string
+
+	// NPCType filter by NPC type (optional)
+	NPCType models.NPCType
+
+	// Limit max number of results
+	Limit int
+
+	// Offset pagination offset
+	Offset int
+}

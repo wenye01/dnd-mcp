@@ -1,7 +1,6 @@
 ---
 name: test
 description: 执行完整的测试流程。包括编译构建、单元测试、集成测试和端到端测试。会检查现有测试脚本并确保其适配当前代码。
-disable-model-invocation: true
 allowed-tools: Read, Glob, Grep, Bash, Write, Edit
 argument-hint: [test-type|all]
 ---

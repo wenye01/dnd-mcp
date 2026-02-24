@@ -1,7 +1,6 @@
 ---
 name: refactor
 description: 分析代码与设计文档的差异，判断是否需要重构并生成重构计划。不为重构而重构，只在必要时才重构。
-disable-model-invocation: true
 allowed-tools: Read, Glob, Grep
 argument-hint: [scope|模块路径]
 ---

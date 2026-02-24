@@ -36,9 +36,9 @@ func getCampaignTestConfig() config.PostgresConfig {
 	return config.PostgresConfig{
 		Host:            getCampaignTestEnvOrDefault("POSTGRES_HOST", "localhost"),
 		Port:            5432,
-		User:            getCampaignTestEnvOrDefault("POSTGRES_USER", "dnd"),
+		User:            getCampaignTestEnvOrDefault("POSTGRES_USER", "postgres"),
 		Password:        getCampaignTestEnvOrDefault("POSTGRES_PASSWORD", "password"),
-		DBName:          getCampaignTestEnvOrDefault("POSTGRES_DBNAME", "dnd_server_test"),
+		DBName:          getCampaignTestEnvOrDefault("POSTGRES_TEST_DBNAME", "dnd_server_test"),
 		SSLMode:         "disable",
 		PoolSize:        5,
 		MaxConnLifetime: 3600,
