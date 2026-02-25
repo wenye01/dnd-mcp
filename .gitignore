@@ -60,3 +60,7 @@ test_debug.sh
 # Go sum files in workspace (auto-generated)
 **/go.sum
 go.work.sum
+
+# D&D 5e 规则书 (只保留查询指南，忽略规则书PDF)
+docs/dnd5e规则书/*.pdf
+docs/dnd5e规则书/*.xlsx
