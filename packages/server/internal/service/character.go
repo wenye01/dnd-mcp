@@ -478,6 +478,12 @@ func (s *CharacterService) validateCreateRequest(req *CreateCharacterRequest) er
 		return NewServiceError(ErrCodeInvalidInput, "player ID is required for player characters")
 	}
 
+	// 玩家角色不能设置 npc_type
+	// 规则参考: D&D 5e 玩家角色与NPC是不同的概念
+	if !req.IsNPC && req.NPCType != "" {
+		return NewServiceError(ErrCodeInvalidInput, "player characters cannot have NPC type")
+	}
+
 	// NPC 类型验证
 	if req.IsNPC && req.NPCType != "" {
 		if req.NPCType != models.NPCTypeScripted && req.NPCType != models.NPCTypeGenerated {
