@@ -62,6 +62,53 @@ type CreateCharacterRequest struct {
 	// 技能和豁免
 	Skills     map[string]int    `json:"skills"`
 	Saves      map[string]int    `json:"saves"`
+
+	// ============ 扩展字段 ============
+
+	// 图片
+	Image string `json:"image"`
+
+	// 经验值
+	Experience int `json:"experience"`
+
+	// 熟练加值
+	Proficiency int `json:"proficiency"`
+
+	// 详细移动速度
+	SpeedDetail *models.Speed `json:"speed_detail"`
+
+	// 死亡豁免
+	DeathSaves *models.DeathSaves `json:"death_saves"`
+
+	// 详细技能
+	SkillsDetail map[string]*models.Skill `json:"skills_detail"`
+
+	// 详细豁免
+	SavesDetail map[string]*models.Save `json:"saves_detail"`
+
+	// 货币
+	Currency *models.Currency `json:"currency"`
+
+	// 装备槽位
+	EquipmentSlots *models.EquipmentSlots `json:"equipment_slots"`
+
+	// 详细背包物品
+	InventoryItems []*models.InventoryItem `json:"inventory_items"`
+
+	// 法术书
+	Spellbook *models.Spellbook `json:"spellbook"`
+
+	// 专长/特性
+	Features []*models.Feature `json:"features"`
+
+	// 传记
+	Biography *models.Biography `json:"biography"`
+
+	// 特性/抗性/语言
+	Traits *models.Traits `json:"traits"`
+
+	// 导入元数据
+	ImportMeta *models.ImportMeta `json:"import_meta"`
 }
 
 // UpdateCharacterRequest represents a character update request
@@ -79,6 +126,24 @@ type UpdateCharacterRequest struct {
 	Initiative *int               `json:"initiative"`
 	Skills     map[string]int     `json:"skills"`
 	Saves      map[string]int     `json:"saves"`
+
+	// ============ 扩展字段 ============
+
+	Image         *string               `json:"image"`
+	Experience    *int                  `json:"experience"`
+	Proficiency   *int                  `json:"proficiency"`
+	SpeedDetail   *models.Speed         `json:"speed_detail"`
+	DeathSaves    *models.DeathSaves    `json:"death_saves"`
+	SkillsDetail  map[string]*models.Skill `json:"skills_detail"`
+	SavesDetail   map[string]*models.Save `json:"saves_detail"`
+	Currency      *models.Currency      `json:"currency"`
+	EquipmentSlots *models.EquipmentSlots `json:"equipment_slots"`
+	InventoryItems []*models.InventoryItem `json:"inventory_items"`
+	Spellbook     *models.Spellbook     `json:"spellbook"`
+	Features      []*models.Feature     `json:"features"`
+	Biography     *models.Biography     `json:"biography"`
+	Traits        *models.Traits        `json:"traits"`
+	ImportMeta    *models.ImportMeta    `json:"import_meta"`
 }
 
 // HPChangeRequest represents an HP change request
@@ -140,15 +205,62 @@ func (s *CharacterService) CreateCharacter(ctx context.Context, req *CreateChara
 		character.Saves = req.Saves
 	}
 
-	// 7. 验证角色
+	// 7. 设置扩展字段
+	if req.Image != "" {
+		character.Image = req.Image
+	}
+	if req.Experience > 0 {
+		character.Experience = req.Experience
+	}
+	if req.Proficiency > 0 {
+		character.Proficiency = req.Proficiency
+	}
+	if req.SpeedDetail != nil {
+		character.SpeedDetail = req.SpeedDetail
+	}
+	if req.DeathSaves != nil {
+		character.DeathSaves = req.DeathSaves
+	}
+	if req.SkillsDetail != nil {
+		character.SkillsDetail = req.SkillsDetail
+	}
+	if req.SavesDetail != nil {
+		character.SavesDetail = req.SavesDetail
+	}
+	if req.Currency != nil {
+		character.Currency = req.Currency
+	}
+	if req.EquipmentSlots != nil {
+		character.EquipmentSlots = req.EquipmentSlots
+	}
+	if req.InventoryItems != nil {
+		character.InventoryItems = req.InventoryItems
+	}
+	if req.Spellbook != nil {
+		character.Spellbook = req.Spellbook
+	}
+	if req.Features != nil {
+		character.Features = req.Features
+	}
+	if req.Biography != nil {
+		character.Biography = req.Biography
+	}
+	if req.Traits != nil {
+		character.Traits = req.Traits
+	}
+	if req.ImportMeta != nil {
+		character.ImportMeta = req.ImportMeta
+	}
+
+	// 8. 验证角色
 	if err := character.Validate(); err != nil {
 		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
-	// 8. 生成 UUID
+	// 9. 生成 UUID
 	character.ID = uuid.New().String()
 
-	// 9. 持久化
+	// 10. 持久化
 	if err := s.store.Create(ctx, character); err != nil {
 		return nil, fmt.Errorf("failed to create character: %w", err)
 	}
@@ -289,6 +401,53 @@ func (s *CharacterService) UpdateCharacter(ctx context.Context, id string, req *
 
 	if req.Saves != nil {
 		character.Saves = req.Saves
+	}
+
+	// 更新扩展字段
+	if req.Image != nil {
+		character.Image = *req.Image
+	}
+	if req.Experience != nil {
+		character.Experience = *req.Experience
+	}
+	if req.Proficiency != nil {
+		character.Proficiency = *req.Proficiency
+	}
+	if req.SpeedDetail != nil {
+		character.SpeedDetail = req.SpeedDetail
+	}
+	if req.DeathSaves != nil {
+		character.DeathSaves = req.DeathSaves
+	}
+	if req.SkillsDetail != nil {
+		character.SkillsDetail = req.SkillsDetail
+	}
+	if req.SavesDetail != nil {
+		character.SavesDetail = req.SavesDetail
+	}
+	if req.Currency != nil {
+		character.Currency = req.Currency
+	}
+	if req.EquipmentSlots != nil {
+		character.EquipmentSlots = req.EquipmentSlots
+	}
+	if req.InventoryItems != nil {
+		character.InventoryItems = req.InventoryItems
+	}
+	if req.Spellbook != nil {
+		character.Spellbook = req.Spellbook
+	}
+	if req.Features != nil {
+		character.Features = req.Features
+	}
+	if req.Biography != nil {
+		character.Biography = req.Biography
+	}
+	if req.Traits != nil {
+		character.Traits = req.Traits
+	}
+	if req.ImportMeta != nil {
+		character.ImportMeta = req.ImportMeta
 	}
 
 	// 验证更新后的角色
