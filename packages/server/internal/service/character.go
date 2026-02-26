@@ -7,6 +7,7 @@ import (
 	"math"
 
 	"github.com/dnd-mcp/server/internal/models"
+	"github.com/dnd-mcp/server/internal/rules"
 	"github.com/dnd-mcp/server/internal/store"
 	"github.com/google/uuid"
 )
@@ -878,4 +879,104 @@ func (s *CharacterService) StabilizeCharacter(ctx context.Context, id string) (*
 	}
 
 	return character, nil
+}
+
+// EncumbranceResponse 负重响应
+type EncumbranceResponse struct {
+	Carried      float64 `json:"carried"`        // 当前负重（磅）
+	Capacity     int     `json:"capacity"`       // 负重能力（磅）
+	PushDragLift int     `json:"push_drag_lift"` // 推/拖/举起重量（磅）
+	IsEncumbered bool    `json:"is_encumbered"`  // 是否超重
+	SpeedPenalty int     `json:"speed_penalty"`  // 速度惩罚（变体规则）
+	Level        string  `json:"level"`          // 超重等级
+}
+
+// GetEncumbrance 获取角色的负重状态
+// 规则参考: PHB 第7章 - Lifting and Carrying
+func (s *CharacterService) GetEncumbrance(ctx context.Context, id string, useVariantRules bool) (*EncumbranceResponse, error) {
+	if id == "" {
+		return nil, NewServiceError(ErrCodeInvalidInput, "character ID is required")
+	}
+
+	// 获取角色
+	character, err := s.store.Get(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get character: %w", err)
+	}
+
+	return s.calculateEncumbranceForCharacter(character, useVariantRules), nil
+}
+
+// calculateEncumbranceForCharacter 计算角色的负重状态
+func (s *CharacterService) calculateEncumbranceForCharacter(character *models.Character, useVariantRules bool) *EncumbranceResponse {
+	// 获取力量值
+	strength := 10 // 默认力量值
+	if character.Abilities != nil {
+		strength = character.Abilities.Strength
+	}
+
+	// 确定体型（默认中型）
+	size := models.SizeMedium
+	// TODO: 根据种族确定体型，这里暂时使用默认值
+
+	// 计算负重
+	enc := rules.CalculateEncumbrance(
+		strength,
+		size,
+		character.EquipmentSlots,
+		character.InventoryItems,
+		character.Equipment,
+		character.Inventory,
+		character.Currency,
+	)
+
+	// 计算超重等级
+	level := rules.GetEncumbranceLevel(enc.Carried, strength, useVariantRules)
+
+	// 计算速度惩罚
+	baseSpeed := character.Speed
+	if character.SpeedDetail != nil {
+		baseSpeed = character.SpeedDetail.Walk
+	}
+	encumberedSpeed := rules.GetEncumberedSpeed(baseSpeed, level)
+	speedPenalty := baseSpeed - encumberedSpeed
+
+	// 转换超重等级为字符串
+	levelStr := "none"
+	switch level {
+	case rules.EncumbranceLight:
+		levelStr = "light"
+	case rules.EncumbranceHeavy:
+		levelStr = "heavy"
+	case rules.EncumbranceOverCapacity:
+		levelStr = "over_capacity"
+	}
+
+	return &EncumbranceResponse{
+		Carried:      enc.Carried,
+		Capacity:     enc.Capacity,
+		PushDragLift: enc.PushDragLift,
+		IsEncumbered: enc.IsEncumbered,
+		SpeedPenalty: speedPenalty,
+		Level:        levelStr,
+	}
+}
+
+// GetCharacterWithEncumbrance 获取角色及其负重状态
+// 规则参考: PHB 第7章 - Lifting and Carrying
+func (s *CharacterService) GetCharacterWithEncumbrance(ctx context.Context, id string, useVariantRules bool) (*models.Character, *EncumbranceResponse, error) {
+	if id == "" {
+		return nil, nil, NewServiceError(ErrCodeInvalidInput, "character ID is required")
+	}
+
+	// 获取角色
+	character, err := s.store.Get(ctx, id)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get character: %w", err)
+	}
+
+	// 计算负重
+	encResponse := s.calculateEncumbranceForCharacter(character, useVariantRules)
+
+	return character, encResponse, nil
 }
