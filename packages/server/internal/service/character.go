@@ -698,3 +698,184 @@ func (s *CharacterService) calculateCombatStats(character *models.Character, req
 		}
 	}
 }
+
+// DeathSaveRequest 死亡豁免请求
+type DeathSaveRequest struct {
+	Roll int `json:"roll"` // 豁免骰结果 (1-20)
+}
+
+// DeathSaveResponse 死亡豁免响应
+type DeathSaveResponse struct {
+	Result      string `json:"result"`       // 结果: success, failure, critical_success, critical_failure
+	IsStable    bool   `json:"is_stable"`    // 是否稳定
+	IsDead      bool   `json:"is_dead"`      // 是否死亡
+	Successes   int    `json:"successes"`    // 成功次数
+	Failures    int    `json:"failures"`     // 失败次数
+	HealedHP    int    `json:"healed_hp"`    // 恢复的 HP（大成功时）
+}
+
+// MakeDeathSave 执行死亡豁免
+// 规则参考: PHB 第9章 - Dropping to 0 Hit Points / Death Saving Throws
+func (s *CharacterService) MakeDeathSave(ctx context.Context, id string, req *DeathSaveRequest) (*DeathSaveResponse, error) {
+	if id == "" {
+		return nil, NewServiceError(ErrCodeInvalidInput, "character ID is required")
+	}
+	if req.Roll < 1 || req.Roll > 20 {
+		return nil, NewServiceError(ErrCodeInvalidInput, "roll must be between 1 and 20")
+	}
+
+	// 获取角色
+	character, err := s.store.Get(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get character: %w", err)
+	}
+
+	// 验证角色处于昏迷状态
+	if !character.IsUnconscious() {
+		return nil, NewServiceError(ErrCodeInvalidInput, "character is not unconscious")
+	}
+
+	// 确保死亡豁免结构存在
+	deathSaves := character.GetDeathSaves()
+
+	response := &DeathSaveResponse{
+		Successes: deathSaves.Successes,
+		Failures:  deathSaves.Failures,
+	}
+
+	// 执行豁免
+	// 自然 20: 大成功，恢复 1 HP
+	if req.Roll == 20 {
+		deathSaves.Reset()
+		if character.HP != nil {
+			response.HealedHP = character.HP.Heal(1)
+		}
+		response.Result = "critical_success"
+		response.Successes = 0
+		response.Failures = 0
+	} else if req.Roll == 1 {
+		// 自然 1: 大失败，失败 +2
+		deathSaves.AddFailure()
+		deathSaves.AddFailure()
+		response.Result = "critical_failure"
+		response.Failures = deathSaves.Failures
+	} else if req.Roll >= 10 {
+		// >= 10: 成功
+		deathSaves.AddSuccess()
+		response.Result = "success"
+		response.Successes = deathSaves.Successes
+		response.IsStable = deathSaves.IsStable()
+	} else {
+		// < 10: 失败
+		deathSaves.AddFailure()
+		response.Result = "failure"
+		response.Failures = deathSaves.Failures
+	}
+
+	// 检查死亡
+	response.IsDead = deathSaves.IsDead()
+
+	// 保存更新
+	if err := s.store.Update(ctx, character); err != nil {
+		return nil, fmt.Errorf("failed to update character: %w", err)
+	}
+
+	return response, nil
+}
+
+// DamageWhileUnconsciousRequest 昏迷时受伤请求
+type DamageWhileUnconsciousRequest struct {
+	Damage int  `json:"damage"` // 伤害值
+	IsCrit bool `json:"is_crit"` // 是否暴击
+}
+
+// DamageWhileUnconsciousResponse 昏迷时受伤响应
+type DamageWhileUnconsciousResponse struct {
+	IsDead    bool `json:"is_dead"`     // 是否死亡
+	Failures  int  `json:"failures"`    // 当前失败次数
+	InstaKill bool `json:"insta_kill"`  // 是否被立即击杀（伤害 >= MaxHP）
+}
+
+// TakeDamageWhileUnconscious 昏迷状态下受到伤害
+// 规则参考: PHB 第9章 - Dropping to 0 Hit Points / Damage at 0 Hit Points
+func (s *CharacterService) TakeDamageWhileUnconscious(ctx context.Context, id string, req *DamageWhileUnconsciousRequest) (*DamageWhileUnconsciousResponse, error) {
+	if id == "" {
+		return nil, NewServiceError(ErrCodeInvalidInput, "character ID is required")
+	}
+	if req.Damage <= 0 {
+		return nil, NewServiceError(ErrCodeInvalidInput, "damage must be positive")
+	}
+
+	// 获取角色
+	character, err := s.store.Get(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get character: %w", err)
+	}
+
+	// 验证角色处于昏迷状态
+	if !character.IsUnconscious() {
+		return nil, NewServiceError(ErrCodeInvalidInput, "character is not unconscious")
+	}
+
+	// 确保死亡豁免结构存在
+	deathSaves := character.GetDeathSaves()
+
+	response := &DamageWhileUnconsciousResponse{}
+
+	// 检查是否造成立即死亡（伤害 >= MaxHP）
+	if character.HP != nil && req.Damage >= character.HP.Max {
+		deathSaves.Failures = 3
+		response.IsDead = true
+		response.InstaKill = true
+		response.Failures = 3
+	} else {
+		// 暴击: 失败 +2
+		if req.IsCrit {
+			deathSaves.AddFailure()
+			deathSaves.AddFailure()
+		} else {
+			// 普通伤害: 失败 +1
+			deathSaves.AddFailure()
+		}
+		response.Failures = deathSaves.Failures
+		response.IsDead = deathSaves.IsDead()
+	}
+
+	// 保存更新
+	if err := s.store.Update(ctx, character); err != nil {
+		return nil, fmt.Errorf("failed to update character: %w", err)
+	}
+
+	return response, nil
+}
+
+// StabilizeCharacter 稳定角色（通过 Medicine 检定或其他效果）
+// 规则参考: PHB 第9章 - Dropping to 0 Hit Points / Stabilizing
+func (s *CharacterService) StabilizeCharacter(ctx context.Context, id string) (*models.Character, error) {
+	if id == "" {
+		return nil, NewServiceError(ErrCodeInvalidInput, "character ID is required")
+	}
+
+	// 获取角色
+	character, err := s.store.Get(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get character: %w", err)
+	}
+
+	// 验证角色处于昏迷状态
+	if !character.IsUnconscious() {
+		return nil, NewServiceError(ErrCodeInvalidInput, "character is not unconscious")
+	}
+
+	// 稳定角色
+	deathSaves := character.GetDeathSaves()
+	deathSaves.Successes = 3
+	deathSaves.Failures = 0
+
+	// 保存更新
+	if err := s.store.Update(ctx, character); err != nil {
+		return nil, fmt.Errorf("failed to update character: %w", err)
+	}
+
+	return character, nil
+}

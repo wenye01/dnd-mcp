@@ -168,40 +168,53 @@ func TestHP_Validate(t *testing.T) {
 	}
 }
 
-func TestHP_IsDead(t *testing.T) {
+func TestHP_IsDeadByOverflow(t *testing.T) {
 	hp := models.NewHP(10)
 
-	if hp.IsDead() {
+	if hp.IsDeadByOverflow() {
 		t.Error("expected HP not to be dead at full health")
 	}
 
-	// Note: Current implementation considers HP <= 0 as dead
+	// HP = 0 is not dead by overflow
 	hp.Current = 0
-	if !hp.IsDead() {
-		t.Error("expected HP to be dead at 0 HP (current implementation)")
+	if hp.IsDeadByOverflow() {
+		t.Error("expected HP not to be dead at 0 HP (only unconscious)")
 	}
 
-	hp.Current = -1
-	if !hp.IsDead() {
-		t.Error("expected HP to be dead when negative")
+	// HP = -5 (overflow < MaxHP) is not dead by overflow
+	hp.Current = -5
+	if hp.IsDeadByOverflow() {
+		t.Error("expected HP not to be dead when overflow < MaxHP")
+	}
+
+	// HP = -10 (overflow = MaxHP) is dead by overflow
+	hp.Current = -10
+	if !hp.IsDeadByOverflow() {
+		t.Error("expected HP to be dead when overflow = MaxHP")
+	}
+
+	// HP = -15 (overflow > MaxHP) is dead by overflow
+	hp.Current = -15
+	if !hp.IsDeadByOverflow() {
+		t.Error("expected HP to be dead when overflow > MaxHP")
 	}
 }
 
-func TestHP_IsUnconscious(t *testing.T) {
+func TestHP_IsAtZero(t *testing.T) {
 	hp := models.NewHP(10)
 
-	if hp.IsUnconscious() {
-		t.Error("expected HP not to be unconscious at full health")
+	if hp.IsAtZero() {
+		t.Error("expected HP not to be at zero at full health")
 	}
 
 	hp.Current = 0
-	if !hp.IsUnconscious() {
-		t.Error("expected HP to be unconscious at 0 HP")
+	if !hp.IsAtZero() {
+		t.Error("expected HP to be at zero")
 	}
 
 	hp.Current = -1
-	if hp.IsUnconscious() {
-		t.Error("expected HP not to be unconscious when dead")
+	if hp.IsAtZero() {
+		t.Error("expected HP not to be at zero when negative")
 	}
 }
 
@@ -629,20 +642,54 @@ func TestCharacter_DeadAndUnconscious(t *testing.T) {
 		t.Error("expected healthy character to not be dead or unconscious")
 	}
 
-	// HP = 0: Both IsDead() and IsUnconscious() return true in current implementation
-	// Note: This reflects the current HP.IsDead() implementation which returns true for Current <= 0
+	// HP = 0: Character is unconscious (not dead)
+	// 规则参考: PHB 第9章 - Dropping to 0 Hit Points
 	character.HP.Current = 0
-	if !character.IsDead() {
-		t.Error("expected character to be dead at 0 HP (current implementation)")
+	if character.IsDead() {
+		t.Error("expected character to NOT be dead at 0 HP (only unconscious)")
 	}
 	if !character.IsUnconscious() {
 		t.Error("expected character to be unconscious at 0 HP")
 	}
 
-	// HP < 0: Dead
-	character.HP.Current = -1
+	// HP = 0 with 3 death save failures: Character is dead
+	character.DeathSaves = models.NewDeathSaves()
+	character.DeathSaves.Failures = 3
 	if !character.IsDead() {
-		t.Error("expected character to be dead")
+		t.Error("expected character to be dead with 3 death save failures")
+	}
+	if character.IsUnconscious() {
+		t.Error("expected character to NOT be unconscious when dead")
+	}
+
+	// HP < 0 with overflow >= MaxHP: Instant death
+	character.DeathSaves = models.NewDeathSaves() // Reset
+	character.HP.Current = -10 // overflow = 10 = MaxHP
+	if !character.IsDead() {
+		t.Error("expected character to be dead when overflow >= MaxHP")
+	}
+
+	// HP < 0 with overflow < MaxHP: Not dead (but also not unconscious, as HP != 0)
+	character.HP.Current = -5 // overflow = 5 < MaxHP (10)
+	if character.IsDead() {
+		t.Error("expected character to NOT be dead when overflow < MaxHP")
+	}
+	if character.IsUnconscious() {
+		t.Error("expected character to NOT be unconscious when HP < 0")
+	}
+
+	// HP = 0 with 3 successes: Stable (not unconscious, not dead)
+	character.HP.Current = 0
+	character.DeathSaves = models.NewDeathSaves()
+	character.DeathSaves.Successes = 3
+	if character.IsDead() {
+		t.Error("expected stable character to NOT be dead")
+	}
+	if character.IsUnconscious() {
+		t.Error("expected stable character to NOT be unconscious")
+	}
+	if !character.IsStable() {
+		t.Error("expected character to be stable with 3 successes")
 	}
 }
 

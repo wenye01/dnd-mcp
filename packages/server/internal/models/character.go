@@ -89,13 +89,19 @@ func (h *HP) Validate() error {
 	return nil
 }
 
-// IsDead 检查是否死亡
-func (h *HP) IsDead() bool {
-	return h.Current <= 0
+// IsDeadByOverflow 检查是否因溢出伤害死亡
+// 规则: 当溢出伤害 >= MaxHP 时立即死亡
+// 规则参考: PHB 第9章 - Dropping to 0 Hit Points / Instant Death
+func (h *HP) IsDeadByOverflow() bool {
+	if h.Current < 0 {
+		overflow := -h.Current
+		return overflow >= h.Max
+	}
+	return false
 }
 
-// IsUnconscious 检查是否昏迷（HP为0但未死亡）
-func (h *HP) IsUnconscious() bool {
+// IsAtZero 检查 HP 是否为 0
+func (h *HP) IsAtZero() bool {
 	return h.Current == 0
 }
 
@@ -369,13 +375,60 @@ func (c *Character) IsGeneratedNPC() bool {
 }
 
 // IsDead 检查是否死亡
+// 规则: 死亡豁免失败 3 次或溢出伤害 >= MaxHP
+// 规则参考: PHB 第9章 - Dropping to 0 Hit Points
 func (c *Character) IsDead() bool {
-	return c.HP != nil && c.HP.IsDead()
+	if c.HP == nil {
+		return false
+	}
+
+	// 检查溢出伤害导致立即死亡
+	if c.HP.IsDeadByOverflow() {
+		return true
+	}
+
+	// 检查死亡豁免失败 3 次
+	if c.DeathSaves != nil && c.DeathSaves.Failures >= 3 {
+		return true
+	}
+
+	return false
 }
 
 // IsUnconscious 检查是否昏迷
+// 规则: HP = 0 且未死亡且未稳定
+// 规则参考: PHB 第9章 - Dropping to 0 Hit Points
 func (c *Character) IsUnconscious() bool {
-	return c.HP != nil && c.HP.IsUnconscious()
+	if c.HP == nil {
+		return false
+	}
+
+	// HP 不为 0 则不昏迷
+	if !c.HP.IsAtZero() {
+		return false
+	}
+
+	// 已死亡则不昏迷
+	if c.IsDead() {
+		return false
+	}
+
+	// 已稳定则不昏迷
+	if c.IsStable() {
+		return false
+	}
+
+	return true
+}
+
+// IsStable 检查是否处于稳定状态
+// 规则: 死亡豁免成功 3 次
+// 规则参考: PHB 第9章 - Dropping to 0 Hit Points
+func (c *Character) IsStable() bool {
+	if c.DeathSaves == nil {
+		return false
+	}
+	return c.DeathSaves.Successes >= 3
 }
 
 // HasCondition 检查是否有特定状态
