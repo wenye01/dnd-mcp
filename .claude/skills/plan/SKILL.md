@@ -209,7 +209,7 @@ argument-hint: [design-doc]
 ### 第四步：生成计划文档
 
 ```
-输出: docs/[client|server]/开发计划.md
+输出: docs/[client|server]/plan/ 目录（按里程碑拆分）
 
 结构:
   ├─ 概述
@@ -428,7 +428,7 @@ test       → 测试验证
 
 ## 输出位置
 
-`docs/[client|server]/开发计划.md`
+`docs/[client|server]/plan/` 目录（按里程碑拆分）
 
 ---
 

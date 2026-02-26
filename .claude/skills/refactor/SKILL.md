@@ -37,7 +37,7 @@ argument-hint: [scope|模块路径]
    - docs/server/详细设计.md（Server 相关）
    - docs/整体架构设计.md
    - docs/代码规范.md
-   - docs/server/开发计划.md（如有）
+   - docs/server/plan/README.md（如有）
 
 2. 读取当前代码实现
    - 根据输入范围扫描相关代码

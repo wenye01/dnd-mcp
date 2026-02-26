@@ -395,7 +395,7 @@ go clean -testcache
 
 - **docs/server/高层次设计.md** - Server 高层次架构设计
 - **docs/server/详细设计.md** - Server 详细设计
-- **docs/server/开发计划.md** - Server 开发计划和任务
+- **docs/server/plan/** - Server 开发计划（按里程碑拆分）
 - **docs/server/关键技术点讨论.md** - Server 开发的技术决策、遗留问题、假设约束
 
 ### 研究想法 (docs/research/)
