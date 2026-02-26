@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/dnd-mcp/server/internal/models"
 	"github.com/dnd-mcp/server/internal/rules"
@@ -515,14 +516,14 @@ func (s *CharacterService) ChangeHP(ctx context.Context, id string, req *HPChang
 	// 添加临时 HP（不叠加，取较大值）
 	if req.TempHP > 0 {
 		character.HP.AddTempHP(req.TempHP)
-		character.UpdatedAt = character.UpdatedAt // 触发更新时间
+		character.UpdatedAt = time.Now()
 	}
 
 	// 增加最大 HP
 	if req.MaxHPBonus > 0 {
 		character.HP.Max += req.MaxHPBonus
 		character.HP.Current += req.MaxHPBonus // 同时增加当前 HP
-		character.UpdatedAt = character.UpdatedAt
+		character.UpdatedAt = time.Now()
 	}
 
 	// 验证 HP
