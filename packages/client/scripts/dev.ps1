@@ -96,5 +96,5 @@ Write-Host "  Sessions:    http://localhost:8080/api/sessions" -ForegroundColor 
 Write-Host ""
 Write-Host "Documentation:" -ForegroundColor Cyan
 Write-Host "  README:      README.md" -ForegroundColor White
-Write-Host "  Design Doc:  doc/系统详细设计.md" -ForegroundColor White
+Write-Host "  Design Doc:  ../../docs/client/详细设计.md" -ForegroundColor White
 Write-Host ""

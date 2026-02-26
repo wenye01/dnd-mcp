@@ -33,10 +33,11 @@ argument-hint: [scope|模块路径]
 
 ```
 1. 读取设计文档
-   - docs/系统详细设计.md
+   - docs/client/详细设计.md（Client 相关）
+   - docs/server/详细设计.md（Server 相关）
    - docs/整体架构设计.md
    - docs/代码规范.md
-   - docs/开发计划-*.md（如有）
+   - docs/server/开发计划.md（如有）
 
 2. 读取当前代码实现
    - 根据输入范围扫描相关代码
@@ -280,7 +281,7 @@ test    → 测试验证
 
 ## 输出位置
 
-- 需要重构: `docs/重构计划-[主题].md`
+- 需要重构: `docs/[client|server]/重构计划-[主题].md`
 - 无需重构: 直接输出报告，不生成文件
 
 ---

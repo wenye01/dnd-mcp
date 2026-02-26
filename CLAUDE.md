@@ -19,7 +19,7 @@
 | 组件 | 状态 | 说明 |
 |------|------|------|
 | **packages/client** | ✅ 已完成 | 会话管理、对话历史、LLM 调用、WebSocket |
-| **packages/server** | 🚧 设计中 | 游戏规则引擎，详见 `docs/server-design/` |
+| **packages/server** | 🚧 设计中 | 游戏规则引擎，详见 `docs/server/` |
 
 ### 规则约束
 
@@ -185,8 +185,10 @@ dnd-mcp/
 │   │   └── tests/       # 测试代码
 │   └── server/          # MCP Server（待开发）
 ├── docs/                # 设计文档
-│   ├── server-design/   # Server 设计讨论
-│   └── *.md             # 其他设计文档
+│   ├── client/          # Client 设计文档
+│   ├── server/          # Server 设计文档
+│   ├── research/        # 研究想法和探索
+│   └── *.md             # 整体设计文档
 └── scripts/             # 构建和测试脚本
 ```
 
@@ -337,7 +339,7 @@ go clean -testcache
 
 ### Server (packages/server/) - 待开发
 
-设计阶段，详见 `docs/server-design/关键技术点讨论.md`
+设计阶段，详见 `docs/server/关键技术点讨论.md`
 
 ## D&D 5e 规则实现要求
 
@@ -381,13 +383,24 @@ go clean -testcache
 
 - **docs/README.md** - 文档导航
 - **docs/整体架构设计.md** - Client + Server 整体架构
-- **docs/系统详细设计.md** - Client 详细设计
 - **docs/代码规范.md** - 代码规范和最佳实践
 - **docs/使用指南.md** - 用户指南和 API 文档
 
-### Server 设计 (docs/server-design/)
+### Client 设计 (docs/client/)
 
-- **docs/server-design/关键技术点讨论.md** - Server 开发的技术决策、遗留问题、假设约束
+- **docs/client/详细设计.md** - Client 详细设计
+- **docs/client/重构计划.md** - Client 适配 Server 重构计划
+
+### Server 设计 (docs/server/)
+
+- **docs/server/高层次设计.md** - Server 高层次架构设计
+- **docs/server/详细设计.md** - Server 详细设计
+- **docs/server/开发计划.md** - Server 开发计划和任务
+- **docs/server/关键技术点讨论.md** - Server 开发的技术决策、遗留问题、假设约束
+
+### 研究想法 (docs/research/)
+
+- **docs/research/** - 探索性研究和技术调研
 
 ### D&D 5e 规则书 (docs/dnd5e规则书/)
 

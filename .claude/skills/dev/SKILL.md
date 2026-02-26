@@ -307,7 +307,7 @@ feat(M1): 完成 T1-1 [任务名称]
 
 ---
 请指定要开发的任务ID，例如：
-/dev docs/开发计划-xxx.md T1-2
+/dev docs/server/开发计划.md T1-2
 ```
 
 ## 与其他 Skill 的关系

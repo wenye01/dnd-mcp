@@ -13,8 +13,11 @@
 dnd-mcp/
 ├── README.md              # 项目介绍（本文件）
 ├── go.work                # Go workspace 配置
-├── docs/                  # 整体设计文档
-│   ├── 系统详细设计.md
+├── docs/                  # 设计文档
+│   ├── client/            # Client 设计文档
+│   ├── server/            # Server 设计文档
+│   ├── research/          # 研究想法和探索
+│   ├── 整体架构设计.md
 │   ├── 使用指南.md
 │   └── 代码规范.md
 ├── packages/              # 核心组件包
@@ -108,7 +111,7 @@ docker-compose up server
 
 ## 开发文档
 
-- [架构设计](docs/系统详细设计.md) - 整体技术架构
+- [架构设计](docs/整体架构设计.md) - 整体技术架构
 - [使用指南](docs/使用指南.md) - API 使用说明
 - [代码规范](docs/代码规范.md) - 编码规范
 
