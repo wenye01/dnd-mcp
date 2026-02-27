@@ -41,6 +41,30 @@ func (s *Server) Registry() *Registry {
 	return s.registry
 }
 
+// Handler returns the HTTP handler for testing purposes
+// This allows tests to use the real routing configuration
+func (s *Server) Handler() http.Handler {
+	// Set Gin mode
+	if s.cfg.Log.Level == "debug" {
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	router := gin.New()
+	router.Use(gin.Recovery())
+
+	// CORS middleware
+	if s.cfg.HTTP.EnableCORS {
+		router.Use(corsMiddleware())
+	}
+
+	// Register routes
+	s.registerRoutes(router)
+
+	return router
+}
+
 // RegisterTool is a convenience method to register a tool
 func (s *Server) RegisterTool(tool Tool, handler ToolHandler) error {
 	return s.registry.Register(tool, handler)

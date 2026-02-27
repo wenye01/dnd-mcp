@@ -10,7 +10,6 @@ import (
 
 	"github.com/dnd-mcp/server/internal/mcp"
 	"github.com/dnd-mcp/server/pkg/config"
-	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,61 +42,19 @@ func newTestConfig() *config.Config {
 	}
 }
 
-func setupRouter(cfg *config.Config, server *mcp.Server) http.Handler {
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "healthy", "version": "1.0.0"})
-	})
-
-	router.POST("/mcp/initialize", func(c *gin.Context) {
-		var req mcp.InitializeRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, mcp.InitializeResponse{
-			ProtocolVersion: "2024-11-05",
-			ServerInfo: mcp.ServerInfo{
-				Name:    "dnd-mcp-server",
-				Version: "1.0.0",
-			},
-		})
-	})
-
-	router.GET("/mcp/tools", func(c *gin.Context) {
-		c.JSON(http.StatusOK, mcp.ListToolsResponse{Tools: server.Registry().List()})
-	})
-
-	router.POST("/mcp/tools/call", func(c *gin.Context) {
-		var req mcp.CallToolRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		argsJSON, _ := json.Marshal(req.Arguments)
-		toolReq := mcp.ToolRequest{
-			ToolName:  req.Name,
-			Arguments: argsJSON,
-		}
-
-		resp := server.Registry().Call(c.Request.Context(), toolReq)
-		c.JSON(http.StatusOK, mcp.CallToolResponse{
-			Content: resp.Content,
-			IsError: resp.IsError,
-		})
-	})
-
-	return router
+// setupTestServer creates a test server using the real routing configuration
+// This ensures tests validate the actual server behavior
+func setupTestServer(cfg *config.Config, server *mcp.Server) *httptest.Server {
+	// Use the real handler from the server
+	handler := server.Handler()
+	return httptest.NewServer(handler)
 }
 
 func TestServer_Health(t *testing.T) {
 	cfg := newTestConfig()
 	server := mcp.NewServer(cfg)
 
-	testServer := httptest.NewServer(setupRouter(cfg, server))
+	testServer := setupTestServer(cfg, server)
 	defer testServer.Close()
 
 	// Test health endpoint
@@ -116,7 +73,7 @@ func TestServer_Initialize(t *testing.T) {
 	cfg := newTestConfig()
 	server := mcp.NewServer(cfg)
 
-	testServer := httptest.NewServer(setupRouter(cfg, server))
+	testServer := setupTestServer(cfg, server)
 	defer testServer.Close()
 
 	// Test initialize endpoint
@@ -156,7 +113,7 @@ func TestServer_ListTools(t *testing.T) {
 	}
 	server.RegisterTool(tool, handler)
 
-	testServer := httptest.NewServer(setupRouter(cfg, server))
+	testServer := setupTestServer(cfg, server)
 	defer testServer.Close()
 
 	// Test list tools endpoint
@@ -198,7 +155,7 @@ func TestServer_CallTool(t *testing.T) {
 	}
 	server.RegisterTool(tool, handler)
 
-	testServer := httptest.NewServer(setupRouter(cfg, server))
+	testServer := setupTestServer(cfg, server)
 	defer testServer.Close()
 
 	// Test call tool endpoint
@@ -227,7 +184,7 @@ func TestServer_CallUnknownTool(t *testing.T) {
 	cfg := newTestConfig()
 	server := mcp.NewServer(cfg)
 
-	testServer := httptest.NewServer(setupRouter(cfg, server))
+	testServer := setupTestServer(cfg, server)
 	defer testServer.Close()
 
 	// Test call unknown tool
