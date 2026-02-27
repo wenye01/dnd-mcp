@@ -11,7 +11,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dnd-mcp/server/internal/api/tools"
 	"github.com/dnd-mcp/server/internal/mcp"
+	"github.com/dnd-mcp/server/internal/service"
 	"github.com/dnd-mcp/server/internal/store/postgres"
 	"github.com/dnd-mcp/server/pkg/config"
 )
@@ -82,12 +84,18 @@ func main() {
 	// Step 4: Create MCP Server
 	server := mcp.NewServer(cfg)
 
-	// Step 5: Register Tools (none in M1, will be added in later milestones)
-	// Tools will be registered here as they are implemented
-	// Example:
-	// server.RegisterTool(dice.GetRollDiceTool(), dice.HandleRollDice)
+	// Step 5: Initialize stores
+	characterStore := postgres.NewCharacterStore(dbClient)
 
-	// Step 6: Start HTTP server in goroutine
+	// Step 6: Initialize services
+	diceService := service.NewDiceService(characterStore)
+
+	// Step 7: Register Tools
+	diceTools := tools.NewDiceTools(diceService)
+	diceTools.Register(server.Registry())
+	fmt.Println("Dice tools registered: roll_dice, roll_check, roll_save")
+
+	// Step 8: Start HTTP server in goroutine
 	go func() {
 		fmt.Printf("HTTP server listening on %s:%d\n", cfg.HTTP.Host, cfg.HTTP.Port)
 		if err := server.Start(context.Background()); err != nil && err != http.ErrServerClosed {
@@ -98,7 +106,7 @@ func main() {
 
 	fmt.Println("Server initialized successfully")
 
-	// Step 7: Wait for interrupt signal for graceful shutdown
+	// Step 9: Wait for interrupt signal for graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
