@@ -1,5 +1,5 @@
-// Package tools_test contains integration tests for dice tools
-package tools_test
+// Package tools contains integration tests for dice tools
+package tools
 
 import (
 	"context"

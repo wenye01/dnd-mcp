@@ -85,15 +85,33 @@ func main() {
 	server := mcp.NewServer(cfg)
 
 	// Step 5: Initialize stores
+	campaignStore := postgres.NewCampaignStore(dbClient)
+	gameStateStore := postgres.NewGameStateStore(dbClient)
 	characterStore := postgres.NewCharacterStore(dbClient)
+	combatStore := postgres.NewCombatStore(dbClient)
 
 	// Step 6: Initialize services
+	campaignService := service.NewCampaignService(campaignStore, gameStateStore)
+	characterService := service.NewCharacterService(characterStore)
 	diceService := service.NewDiceService(characterStore)
+	combatService := service.NewCombatService(combatStore, characterStore, campaignStore, diceService)
 
 	// Step 7: Register Tools
+	campaignTools := tools.NewCampaignTools(campaignService)
+	campaignTools.Register(server.Registry())
+	fmt.Println("Campaign tools registered: create_campaign, get_campaign, list_campaigns, delete_campaign, get_campaign_summary")
+
+	characterTools := tools.NewCharacterTools(characterService)
+	characterTools.Register(server.Registry())
+	fmt.Println("Character tools registered: create_character, get_character, update_character, list_characters, delete_character")
+
 	diceTools := tools.NewDiceTools(diceService)
 	diceTools.Register(server.Registry())
 	fmt.Println("Dice tools registered: roll_dice, roll_check, roll_save")
+
+	combatTools := tools.NewCombatTools(combatService)
+	combatTools.Register(server.Registry())
+	fmt.Println("Combat tools registered: start_combat, get_combat_state, attack, cast_spell, end_turn, end_combat")
 
 	// Step 8: Start HTTP server in goroutine
 	go func() {

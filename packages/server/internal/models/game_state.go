@@ -163,15 +163,16 @@ func (p *Position) Validate() error {
 
 // GameState 游戏状态
 type GameState struct {
-	ID             string     `json:"id"`               // 与CampaignID相同
-	CampaignID     string     `json:"campaign_id"`      // 所属战役ID
-	GameTime       *GameTime  `json:"game_time"`        // 游戏时间
-	PartyPosition  *Position  `json:"party_position"`   // 队伍在大地图的位置
-	CurrentMapID   string     `json:"current_map_id"`   // 当前所在地图ID
-	CurrentMapType MapType    `json:"current_map_type"` // 当前地图类型
-	Weather        string     `json:"weather"`          // 天气
-	ActiveCombatID string     `json:"active_combat_id"` // 当前战斗ID（如果有）
-	UpdatedAt      time.Time  `json:"updated_at"`
+	ID             string        `json:"id"`               // 与CampaignID相同
+	CampaignID     string        `json:"campaign_id"`      // 所属战役ID
+	GameTime       *GameTime     `json:"game_time"`        // 游戏时间
+	PartyPosition  *Position     `json:"party_position"`   // 队伍在大地图的位置（Grid 模式）
+	CurrentMapID   string        `json:"current_map_id"`   // 当前所在地图ID
+	CurrentMapType MapType       `json:"current_map_type"` // 当前地图类型
+	Weather        string        `json:"weather"`          // 天气
+	ActiveCombatID string        `json:"active_combat_id"` // 当前战斗ID（如果有）
+	PlayerMarker   *PlayerMarker `json:"player_marker,omitempty"` // 玩家标记位置（Image 模式）
+	UpdatedAt      time.Time     `json:"updated_at"`
 }
 
 // NewGameState 创建新游戏状态
@@ -200,6 +201,11 @@ func (s *GameState) Validate() error {
 	}
 	if s.PartyPosition != nil {
 		if err := s.PartyPosition.Validate(); err != nil {
+			return err
+		}
+	}
+	if s.PlayerMarker != nil {
+		if err := s.PlayerMarker.Validate(); err != nil {
 			return err
 		}
 	}
@@ -267,4 +273,45 @@ func (s *GameState) AdvanceTimeMinutes(minutes int) {
 		s.GameTime.AddMinutes(minutes)
 	}
 	s.UpdatedAt = time.Now()
+}
+
+// PlayerMarker 玩家标记（用于 Image 模式的大地图）
+type PlayerMarker struct {
+	PositionX    float64 `json:"position_x"`              // X 坐标（0-1 归一化）
+	PositionY    float64 `json:"position_y"`              // Y 坐标（0-1 归一化）
+	CurrentScene string  `json:"current_scene,omitempty"` // 当前场景描述
+	UpdatedAt    string  `json:"updated_at"`              // 更新时间（ISO 8601）
+}
+
+// NewPlayerMarker 创建新的玩家标记
+func NewPlayerMarker(posX, posY float64) *PlayerMarker {
+	return &PlayerMarker{
+		PositionX: posX,
+		PositionY: posY,
+		UpdatedAt: time.Now().Format(time.RFC3339),
+	}
+}
+
+// Validate 验证玩家标记
+func (p *PlayerMarker) Validate() error {
+	if p.PositionX < 0 || p.PositionX > 1 {
+		return NewValidationError("player_marker.position_x", "must be between 0 and 1")
+	}
+	if p.PositionY < 0 || p.PositionY > 1 {
+		return NewValidationError("player_marker.position_y", "must be between 0 and 1")
+	}
+	return nil
+}
+
+// SetPosition 设置位置
+func (p *PlayerMarker) SetPosition(posX, posY float64) {
+	p.PositionX = posX
+	p.PositionY = posY
+	p.UpdatedAt = time.Now().Format(time.RFC3339)
+}
+
+// SetScene 设置当前场景描述
+func (p *PlayerMarker) SetScene(scene string) {
+	p.CurrentScene = scene
+	p.UpdatedAt = time.Now().Format(time.RFC3339)
 }

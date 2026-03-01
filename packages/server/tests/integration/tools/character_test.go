@@ -1,5 +1,5 @@
-// Package tools_test contains integration tests for character tools
-package tools_test
+// Package tools contains integration tests for character tools
+package tools
 
 import (
 	"context"
@@ -10,78 +10,9 @@ import (
 	"github.com/dnd-mcp/server/internal/mcp"
 	"github.com/dnd-mcp/server/internal/models"
 	"github.com/dnd-mcp/server/internal/service"
-	"github.com/dnd-mcp/server/internal/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// MockCharacterStore for testing
-type MockCharacterStore struct {
-	characters map[string]*models.Character
-}
-
-func NewMockCharacterStore() *MockCharacterStore {
-	return &MockCharacterStore{
-		characters: make(map[string]*models.Character),
-	}
-}
-
-func (m *MockCharacterStore) Create(ctx context.Context, character *models.Character) error {
-	m.characters[character.ID] = character
-	return nil
-}
-
-func (m *MockCharacterStore) Get(ctx context.Context, id string) (*models.Character, error) {
-	c, ok := m.characters[id]
-	if !ok {
-		return nil, service.NewServiceError(service.ErrCodeNotFound, "character not found")
-	}
-	return c, nil
-}
-
-func (m *MockCharacterStore) GetByCampaignAndID(ctx context.Context, campaignID, id string) (*models.Character, error) {
-	c, ok := m.characters[id]
-	if !ok || c.CampaignID != campaignID {
-		return nil, service.NewServiceError(service.ErrCodeNotFound, "character not found")
-	}
-	return c, nil
-}
-
-func (m *MockCharacterStore) List(ctx context.Context, filter *store.CharacterFilter) ([]*models.Character, error) {
-	var result []*models.Character
-	for _, c := range m.characters {
-		// Apply filters
-		if filter.CampaignID != "" && c.CampaignID != filter.CampaignID {
-			continue
-		}
-		if filter.IsNPC != nil && c.IsNPC != *filter.IsNPC {
-			continue
-		}
-		if filter.PlayerID != "" && c.PlayerID != filter.PlayerID {
-			continue
-		}
-		if filter.NPCType != "" && c.NPCType != filter.NPCType {
-			continue
-		}
-		result = append(result, c)
-	}
-	return result, nil
-}
-
-func (m *MockCharacterStore) Update(ctx context.Context, character *models.Character) error {
-	m.characters[character.ID] = character
-	return nil
-}
-
-func (m *MockCharacterStore) Delete(ctx context.Context, id string) error {
-	delete(m.characters, id)
-	return nil
-}
-
-func (m *MockCharacterStore) Count(ctx context.Context, filter *store.CharacterFilter) (int64, error) {
-	characters, _ := m.List(ctx, filter)
-	return int64(len(characters)), nil
-}
 
 // Test fixtures
 func setupCharacterTools() (*tools.CharacterTools, *mcp.Registry, *MockCharacterStore) {

@@ -47,9 +47,17 @@ func (s *GameStateStore) Create(ctx context.Context, gameState *models.GameState
 		}
 	}
 
+	var playerMarkerJSON []byte
+	if gameState.PlayerMarker != nil {
+		playerMarkerJSON, err = json.Marshal(gameState.PlayerMarker)
+		if err != nil {
+			return fmt.Errorf("failed to marshal player_marker: %w", err)
+		}
+	}
+
 	query := `
-		INSERT INTO game_states (id, campaign_id, game_time, party_position, current_map_id, current_map_type, weather, active_combat_id, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO game_states (id, campaign_id, game_time, party_position, current_map_id, current_map_type, weather, active_combat_id, player_marker, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 
 	_, err = s.pool.Exec(ctx, query,
@@ -61,6 +69,7 @@ func (s *GameStateStore) Create(ctx context.Context, gameState *models.GameState
 		string(gameState.CurrentMapType),
 		nullString(gameState.Weather),
 		nullString(gameState.ActiveCombatID),
+		nullJSON(playerMarkerJSON),
 		gameState.UpdatedAt,
 	)
 
@@ -74,7 +83,7 @@ func (s *GameStateStore) Create(ctx context.Context, gameState *models.GameState
 // Get retrieves game state by campaign ID
 func (s *GameStateStore) Get(ctx context.Context, campaignID string) (*models.GameState, error) {
 	query := `
-		SELECT id, campaign_id, game_time, party_position, current_map_id, current_map_type, weather, active_combat_id, updated_at
+		SELECT id, campaign_id, game_time, party_position, current_map_id, current_map_type, weather, active_combat_id, player_marker, updated_at
 		FROM game_states
 		WHERE campaign_id = $1
 	`
@@ -85,7 +94,7 @@ func (s *GameStateStore) Get(ctx context.Context, campaignID string) (*models.Ga
 // GetByID retrieves game state by its own ID
 func (s *GameStateStore) GetByID(ctx context.Context, id string) (*models.GameState, error) {
 	query := `
-		SELECT id, campaign_id, game_time, party_position, current_map_id, current_map_type, weather, active_combat_id, updated_at
+		SELECT id, campaign_id, game_time, party_position, current_map_id, current_map_type, weather, active_combat_id, player_marker, updated_at
 		FROM game_states
 		WHERE id = $1
 	`
@@ -111,10 +120,18 @@ func (s *GameStateStore) Update(ctx context.Context, gameState *models.GameState
 		}
 	}
 
+	var playerMarkerJSON []byte
+	if gameState.PlayerMarker != nil {
+		playerMarkerJSON, err = json.Marshal(gameState.PlayerMarker)
+		if err != nil {
+			return fmt.Errorf("failed to marshal player_marker: %w", err)
+		}
+	}
+
 	query := `
 		UPDATE game_states
-		SET game_time = $1, party_position = $2, current_map_id = $3, current_map_type = $4, weather = $5, active_combat_id = $6, updated_at = $7
-		WHERE campaign_id = $8
+		SET game_time = $1, party_position = $2, current_map_id = $3, current_map_type = $4, weather = $5, active_combat_id = $6, player_marker = $7, updated_at = $8
+		WHERE campaign_id = $9
 	`
 
 	result, err := s.pool.Exec(ctx, query,
@@ -124,6 +141,7 @@ func (s *GameStateStore) Update(ctx context.Context, gameState *models.GameState
 		string(gameState.CurrentMapType),
 		nullString(gameState.Weather),
 		nullString(gameState.ActiveCombatID),
+		nullJSON(playerMarkerJSON),
 		gameState.UpdatedAt,
 		gameState.CampaignID,
 	)
@@ -164,15 +182,16 @@ func (s *GameStateStore) scanGameState(ctx context.Context, query string, args .
 // scanGameStateFromRow scans a game state from a row
 func scanGameStateFromRow(row pgx.Row) (*models.GameState, error) {
 	var (
-		id              string
-		campaignID      string
-		gameTimeJSON    []byte
+		id                string
+		campaignID        string
+		gameTimeJSON      []byte
 		partyPositionJSON []byte
-		currentMapID    sql.NullString
-		currentMapType  string
-		weather         sql.NullString
-		activeCombatID  sql.NullString
-		updatedAt       time.Time
+		currentMapID      sql.NullString
+		currentMapType    string
+		weather           sql.NullString
+		activeCombatID    sql.NullString
+		playerMarkerJSON  []byte
+		updatedAt         time.Time
 	)
 
 	err := row.Scan(
@@ -184,6 +203,7 @@ func scanGameStateFromRow(row pgx.Row) (*models.GameState, error) {
 		&currentMapType,
 		&weather,
 		&activeCombatID,
+		&playerMarkerJSON,
 		&updatedAt,
 	)
 
@@ -212,6 +232,16 @@ func scanGameStateFromRow(row pgx.Row) (*models.GameState, error) {
 		partyPosition = &pos
 	}
 
+	// Unmarshal player marker
+	var playerMarker *models.PlayerMarker
+	if len(playerMarkerJSON) > 0 {
+		var marker models.PlayerMarker
+		if err := json.Unmarshal(playerMarkerJSON, &marker); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal player_marker: %w", err)
+		}
+		playerMarker = &marker
+	}
+
 	gameState := &models.GameState{
 		ID:             id,
 		CampaignID:     campaignID,
@@ -221,6 +251,7 @@ func scanGameStateFromRow(row pgx.Row) (*models.GameState, error) {
 		CurrentMapType: models.MapType(currentMapType),
 		Weather:        weather.String,
 		ActiveCombatID: activeCombatID.String,
+		PlayerMarker:   playerMarker,
 		UpdatedAt:      updatedAt,
 	}
 

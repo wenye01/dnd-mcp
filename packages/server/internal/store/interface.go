@@ -114,3 +114,51 @@ type CharacterFilter struct {
 	// Offset pagination offset
 	Offset int
 }
+
+// CombatStore combat storage interface
+type CombatStore interface {
+	// Create creates a new combat
+	Create(ctx context.Context, combat *models.Combat) error
+
+	// Get retrieves a combat by ID
+	Get(ctx context.Context, id string) (*models.Combat, error)
+
+	// GetByCampaign retrieves combats by campaign ID
+	GetByCampaign(ctx context.Context, campaignID string) ([]*models.Combat, error)
+
+	// GetActive retrieves the active combat for a campaign
+	GetActive(ctx context.Context, campaignID string) (*models.Combat, error)
+
+	// Update updates a combat
+	Update(ctx context.Context, combat *models.Combat) error
+
+	// Delete deletes a combat
+	Delete(ctx context.Context, id string) error
+}
+
+// MapStore map storage interface
+type MapStore interface {
+	// Create creates a new map
+	Create(ctx context.Context, gameMap *models.Map) error
+
+	// Get retrieves a map by ID
+	Get(ctx context.Context, id string) (*models.Map, error)
+
+	// GetByCampaign retrieves maps by campaign ID
+	GetByCampaign(ctx context.Context, campaignID string) ([]*models.Map, error)
+
+	// Update updates a map
+	Update(ctx context.Context, gameMap *models.Map) error
+
+	// Delete deletes a map
+	Delete(ctx context.Context, id string) error
+
+	// GetWorldMap retrieves the world map for a campaign
+	GetWorldMap(ctx context.Context, campaignID string) (*models.Map, error)
+
+	// GetBattleMap retrieves a battle map by ID
+	GetBattleMap(ctx context.Context, id string) (*models.Map, error)
+
+	// GetByParent retrieves battle maps by parent location
+	GetByParent(ctx context.Context, parentID string) ([]*models.Map, error)
+}

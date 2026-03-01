@@ -1,5 +1,5 @@
-// Package tools_test contains integration tests for campaign tools
-package tools_test
+// Package tools contains integration tests for campaign tools
+package tools
 
 import (
 	"context"
@@ -10,112 +10,9 @@ import (
 	"github.com/dnd-mcp/server/internal/mcp"
 	"github.com/dnd-mcp/server/internal/models"
 	"github.com/dnd-mcp/server/internal/service"
-	"github.com/dnd-mcp/server/internal/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// MockCampaignStore for testing
-type MockCampaignStore struct {
-	campaigns map[string]*models.Campaign
-}
-
-func NewMockCampaignStore() *MockCampaignStore {
-	return &MockCampaignStore{
-		campaigns: make(map[string]*models.Campaign),
-	}
-}
-
-func (m *MockCampaignStore) Create(ctx context.Context, campaign *models.Campaign) error {
-	m.campaigns[campaign.ID] = campaign
-	return nil
-}
-
-func (m *MockCampaignStore) Get(ctx context.Context, id string) (*models.Campaign, error) {
-	c, ok := m.campaigns[id]
-	if !ok {
-		return nil, service.NewServiceError(service.ErrCodeNotFound, "campaign not found")
-	}
-	return c, nil
-}
-
-func (m *MockCampaignStore) GetByIDAndDM(ctx context.Context, id, dmID string) (*models.Campaign, error) {
-	c, ok := m.campaigns[id]
-	if !ok || c.DMID != dmID {
-		return nil, service.NewServiceError(service.ErrCodeNotFound, "campaign not found")
-	}
-	return c, nil
-}
-
-func (m *MockCampaignStore) List(ctx context.Context, filter *store.CampaignFilter) ([]*models.Campaign, error) {
-	var result []*models.Campaign
-	for _, c := range m.campaigns {
-		result = append(result, c)
-	}
-	return result, nil
-}
-
-func (m *MockCampaignStore) Update(ctx context.Context, campaign *models.Campaign) error {
-	m.campaigns[campaign.ID] = campaign
-	return nil
-}
-
-func (m *MockCampaignStore) Delete(ctx context.Context, id string) error {
-	delete(m.campaigns, id)
-	return nil
-}
-
-func (m *MockCampaignStore) HardDelete(ctx context.Context, id string) error {
-	delete(m.campaigns, id)
-	return nil
-}
-
-func (m *MockCampaignStore) Count(ctx context.Context, filter *store.CampaignFilter) (int64, error) {
-	return int64(len(m.campaigns)), nil
-}
-
-// MockGameStateStore for testing
-type MockGameStateStore struct {
-	gameStates map[string]*models.GameState
-}
-
-func NewMockGameStateStore() *MockGameStateStore {
-	return &MockGameStateStore{
-		gameStates: make(map[string]*models.GameState),
-	}
-}
-
-func (m *MockGameStateStore) Create(ctx context.Context, gs *models.GameState) error {
-	m.gameStates[gs.CampaignID] = gs
-	return nil
-}
-
-func (m *MockGameStateStore) Get(ctx context.Context, campaignID string) (*models.GameState, error) {
-	gs, ok := m.gameStates[campaignID]
-	if !ok {
-		return nil, service.NewServiceError(service.ErrCodeNotFound, "game state not found")
-	}
-	return gs, nil
-}
-
-func (m *MockGameStateStore) GetByID(ctx context.Context, id string) (*models.GameState, error) {
-	for _, gs := range m.gameStates {
-		if gs.ID == id {
-			return gs, nil
-		}
-	}
-	return nil, service.NewServiceError(service.ErrCodeNotFound, "game state not found")
-}
-
-func (m *MockGameStateStore) Update(ctx context.Context, gs *models.GameState) error {
-	m.gameStates[gs.CampaignID] = gs
-	return nil
-}
-
-func (m *MockGameStateStore) Delete(ctx context.Context, campaignID string) error {
-	delete(m.gameStates, campaignID)
-	return nil
-}
 
 // Test fixtures
 func setupCampaignTools() (*tools.CampaignTools, *mcp.Registry, *MockCampaignStore) {
