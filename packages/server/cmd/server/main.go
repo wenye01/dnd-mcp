@@ -89,12 +89,14 @@ func main() {
 	gameStateStore := postgres.NewGameStateStore(dbClient)
 	characterStore := postgres.NewCharacterStore(dbClient)
 	combatStore := postgres.NewCombatStore(dbClient)
+	mapStore := postgres.NewMapStore(dbClient)
 
 	// Step 6: Initialize services
 	campaignService := service.NewCampaignService(campaignStore, gameStateStore)
 	characterService := service.NewCharacterService(characterStore)
 	diceService := service.NewDiceService(characterStore)
 	combatService := service.NewCombatService(combatStore, characterStore, campaignStore, diceService)
+	mapService := service.NewMapServiceWithCharacters(mapStore, campaignStore, gameStateStore, characterStore)
 
 	// Step 7: Register Tools
 	campaignTools := tools.NewCampaignTools(campaignService)
@@ -112,6 +114,10 @@ func main() {
 	combatTools := tools.NewCombatTools(combatService)
 	combatTools.Register(server.Registry())
 	fmt.Println("Combat tools registered: start_combat, get_combat_state, attack, cast_spell, end_turn, end_combat")
+
+	mapTools := tools.NewMapToolsWithCharacters(mapService)
+	mapTools.Register(server.Registry())
+	fmt.Println("Map tools registered: get_world_map, move_to, move_token, enter_battle_map, get_battle_map, exit_battle_map, create_visual_location, update_location")
 
 	// Step 8: Start HTTP server in goroutine
 	go func() {

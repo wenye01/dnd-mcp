@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -26,6 +27,38 @@ type Migrator struct {
 
 // NewMigrator creates a new migrator
 func NewMigrator(client *Client) *Migrator {
+	// Resolve migrations path relative to executable
+	// If running from bin directory, look in ../packages/server/internal/store/postgres/migrations
+	// Otherwise, try the relative path from current directory
+	exePath, err := os.Executable()
+	if err != nil {
+		// Fallback to relative path
+		return &Migrator{
+			client:         client,
+			migrationsPath: "internal/store/postgres/migrations",
+		}
+	}
+
+	// Try path relative to executable (for running from bin/)
+	binDir := filepath.Dir(exePath)
+	candidatePath := filepath.Join(binDir, "../packages/server/internal/store/postgres/migrations")
+	if _, err := os.Stat(candidatePath); err == nil {
+		return &Migrator{
+			client:         client,
+			migrationsPath: candidatePath,
+		}
+	}
+
+	// Try path relative to working directory
+	candidatePath = filepath.Join("internal/store/postgres/migrations")
+	if _, err := os.Stat(candidatePath); err == nil {
+		return &Migrator{
+			client:         client,
+			migrationsPath: candidatePath,
+		}
+	}
+
+	// Fallback to relative path
 	return &Migrator{
 		client:         client,
 		migrationsPath: "internal/store/postgres/migrations",
@@ -62,7 +95,9 @@ func (m *Migrator) Up(ctx context.Context) error {
 	// 4. Execute pending migrations
 	appliedCount := 0
 	for _, migration := range migrations {
+		fmt.Printf("DEBUG: Checking migration %d (name: %s), appliedVersions: %v\n", migration.Version, migration.Name, appliedVersions)
 		if _, applied := appliedVersions[migration.Version]; applied {
+			fmt.Printf("DEBUG: Skipping migration %d (already applied)\n", migration.Version)
 			continue // Already applied, skip
 		}
 
@@ -191,10 +226,14 @@ func (m *Migrator) getAppliedVersions(ctx context.Context) (map[int64]time.Time,
 
 	versions := make(map[int64]time.Time)
 	for rows.Next() {
-		var version int64
+		var versionStr string
 		var appliedAt time.Time
-		if err := rows.Scan(&version, &appliedAt); err != nil {
+		if err := rows.Scan(&versionStr, &appliedAt); err != nil {
 			return nil, err
+		}
+		var version int64
+		if _, err := fmt.Sscanf(versionStr, "%d", &version); err != nil {
+			return nil, fmt.Errorf("failed to parse version %q: %w", versionStr, err)
 		}
 		versions[version] = appliedAt
 	}
@@ -254,6 +293,7 @@ func (m *Migrator) readMigrationFiles() ([]Migration, error) {
 func (m *Migrator) applyMigration(ctx context.Context, migration *Migration) error {
 	// Read up file
 	upFileName := fmt.Sprintf("%s/%06d_%s.up.sql", m.migrationsPath, migration.Version, migration.Name)
+	fmt.Printf("DEBUG: Attempting to read migration file: %s\n", upFileName)
 	upSQL, err := os.ReadFile(upFileName)
 	if err != nil {
 		return fmt.Errorf("failed to read migration file: %w", err)

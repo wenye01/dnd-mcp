@@ -67,3 +67,4 @@ docs/dnd5e规则书/*.xlsx
 
 # 旧文档位置（已迁移至 docs/）
 packages/client/doc/
+docs/data/

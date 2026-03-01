@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/dnd-mcp/server/pkg/config"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 )
@@ -33,6 +34,10 @@ func NewClient(cfg config.PostgresConfig) (*Client, error) {
 	poolConfig.MaxConnLifetime = time.Duration(cfg.MaxConnLifetime) * time.Second
 	poolConfig.MaxConnIdleTime = time.Duration(cfg.MaxConnIdleTime) * time.Second
 	poolConfig.HealthCheckPeriod = 1 * time.Minute
+
+	// Set default query exec mode for proper type scanning
+	// Use DescribeExec mode for binary protocol and proper type handling
+	poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeDescribeExec
 
 	// Configure logging (optional, for debugging)
 	poolConfig.ConnConfig.Tracer = &tracelog.TraceLog{
