@@ -9,6 +9,7 @@ import (
 
 	"github.com/dnd-mcp/client/internal/models"
 	"github.com/dnd-mcp/client/internal/persistence"
+	"github.com/dnd-mcp/client/internal/repository"
 	"github.com/dnd-mcp/client/internal/store"
 	"github.com/dnd-mcp/client/pkg/errors"
 	"github.com/google/uuid"
@@ -183,6 +184,7 @@ func (m *messageStore) ListSince(ctx context.Context, sessionID string, since ti
 var _ store.MessageStore = (*messageStore)(nil)
 var _ persistence.MessageWriter = (*messageStore)(nil)
 var _ persistence.MessageReader = (*messageStore)(nil)
+var _ repository.MessageRepository = (*messageStore)(nil)
 
 // BatchCreate 批量创建消息（实现 persistence.MessageWriter）
 func (m *messageStore) BatchCreate(ctx context.Context, messages []*models.Message) error {

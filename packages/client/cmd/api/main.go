@@ -13,6 +13,8 @@ import (
 
 	"github.com/dnd-mcp/client/internal/api"
 	"github.com/dnd-mcp/client/internal/api/handler"
+	"github.com/dnd-mcp/client/internal/llm"
+	"github.com/dnd-mcp/client/internal/mcp"
 	"github.com/dnd-mcp/client/internal/models"
 	"github.com/dnd-mcp/client/internal/monitor"
 	"github.com/dnd-mcp/client/internal/persistence"
@@ -136,6 +138,23 @@ func main() {
 	// 注意：adminHandler 目前未在路由中使用，但保留以备将来使用
 	_ = adminHandler
 
+	// 初始化 LLM 和 MCP 客户端
+	llmClient, err := llm.NewClient(&cfg.LLM)
+	if err != nil {
+		log.Printf("⚠ 初始化 LLM 客户端失败: %v", err)
+		llmClient = nil
+	} else {
+		log.Println("✓ LLM 客户端初始化成功")
+	}
+
+	mcpClient, err := mcp.NewClient(&cfg.MCP)
+	if err != nil {
+		log.Printf("⚠ 初始化 MCP 客户端失败: %v", err)
+		mcpClient = nil
+	} else {
+		log.Println("✓ MCP 客户端初始化成功")
+	}
+
 	// 创建 SessionService（带同步持久化）
 	var sessionService *service.SessionService
 	if postgresSessionStore != nil {
@@ -155,6 +174,18 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
+	// 初始化 ContextBuilder
+	contextBuilder := service.NewContextBuilder(messageStore, sessionStore)
+
+	// 初始化 ChatService
+	var chatService service.ChatServiceInterface
+	if llmClient != nil && mcpClient != nil {
+		chatService = service.NewChatService(messageStore, sessionStore, llmClient, mcpClient, contextBuilder)
+		log.Println("✓ ChatService 初始化成功")
+	} else {
+		log.Println("⚠ ChatService 未完全初始化（LLM 或 MCP 客户端缺失）")
+	}
+
 	// 持久化管理器（如果可用）
 	var persistenceTriggerer handler.PersistenceTriggerer
 	if postgresClient != nil {
@@ -171,11 +202,9 @@ func main() {
 	apiServer := api.NewServer(
 		cfg,
 		sessionService,
+		chatService,
 		sessionStore,
 		messageStore,
-		nil, // llmClient
-		nil, // mcpClient
-		nil, // contextBuilder
 		nil, // hub
 		systemHandler,
 	)

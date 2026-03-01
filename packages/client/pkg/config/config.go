@@ -63,6 +63,7 @@ type PostgresConfig struct {
 type LLMConfig struct {
 	Provider    string  `mapstructure:"provider" env:"LLM_PROVIDER" default:"mock"`
 	APIKey      string  `mapstructure:"api_key" env:"LLM_API_KEY" default:""`
+	BaseURL     string  `mapstructure:"base_url" env:"LLM_BASE_URL" default:"https://api.openai.com/v1"`
 	Model       string  `mapstructure:"model" env:"LLM_MODEL" default:"gpt-4"`
 	MaxTokens   int     `mapstructure:"max_tokens" env:"LLM_MAX_TOKENS" default:"4096"`
 	Temperature float64 `mapstructure:"temperature" env:"LLM_TEMPERATURE" default:"0.7"`
@@ -115,6 +116,7 @@ func Load() (*Config, error) {
 		LLM: LLMConfig{
 			Provider:    getEnv("LLM_PROVIDER", "mock"),
 			APIKey:      getEnv("LLM_API_KEY", ""),
+			BaseURL:     getEnv("LLM_BASE_URL", "https://api.openai.com/v1"),
 			Model:       getEnv("LLM_MODEL", "gpt-4"),
 			MaxTokens:   getEnvInt("LLM_MAX_TOKENS", 4096),
 			Temperature: getEnvFloat64("LLM_TEMPERATURE", 0.7),

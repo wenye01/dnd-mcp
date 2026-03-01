@@ -23,9 +23,13 @@ type OpenAIClient struct {
 
 // NewOpenAIClient 创建 OpenAI 客户端
 func NewOpenAIClient(cfg *config.LLMConfig) *OpenAIClient {
+	baseURL := cfg.BaseURL
+	if baseURL == "" {
+		baseURL = "https://api.openai.com/v1"
+	}
 	return &OpenAIClient{
 		config:  cfg,
-		baseURL: "https://api.openai.com/v1",
+		baseURL: baseURL,
 		apiKey:  cfg.APIKey,
 		httpClient: &http.Client{
 			Timeout: time.Duration(cfg.Timeout) * time.Second,

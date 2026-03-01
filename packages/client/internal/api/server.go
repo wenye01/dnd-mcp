@@ -9,8 +9,6 @@ import (
 
 	"github.com/dnd-mcp/client/internal/api/handler"
 	"github.com/dnd-mcp/client/internal/api/middleware"
-	"github.com/dnd-mcp/client/internal/llm"
-	"github.com/dnd-mcp/client/internal/mcp"
 	"github.com/dnd-mcp/client/internal/service"
 	"github.com/dnd-mcp/client/internal/store"
 	"github.com/dnd-mcp/client/internal/ws"
@@ -25,11 +23,9 @@ type Server struct {
 	httpServer     *http.Server
 	router         *gin.Engine
 	sessionService *service.SessionService
+	chatService    service.ChatServiceInterface
 	sessionStore   store.SessionStore
 	messageStore   store.MessageStore
-	llmClient      llm.LLMClient
-	mcpClient      mcp.MCPClient
-	contextBuilder *service.ContextBuilder
 	hub            *ws.Hub
 	systemHandler  *handler.SystemHandler
 }
@@ -38,11 +34,9 @@ type Server struct {
 func NewServer(
 	cfg *config.Config,
 	sessionService *service.SessionService,
+	chatService service.ChatServiceInterface,
 	sessionStore store.SessionStore,
 	messageStore store.MessageStore,
-	llmClient llm.LLMClient,
-	mcpClient mcp.MCPClient,
-	contextBuilder *service.ContextBuilder,
 	hub *ws.Hub,
 	systemHandler *handler.SystemHandler,
 ) *Server {
@@ -59,11 +53,9 @@ func NewServer(
 		config:         cfg,
 		router:         router,
 		sessionService: sessionService,
+		chatService:    chatService,
 		sessionStore:   sessionStore,
 		messageStore:   messageStore,
-		llmClient:      llmClient,
-		mcpClient:      mcpClient,
-		contextBuilder: contextBuilder,
 		hub:            hub,
 		systemHandler:  systemHandler,
 	}
@@ -94,7 +86,7 @@ func (s *Server) setupRoutes() {
 	})
 
 	// 创建消息处理器
-	messageHandler := handler.NewMessageHandler(s.messageStore, s.sessionStore, s.llmClient, s.mcpClient, s.contextBuilder, s.hub)
+	messageHandler := handler.NewMessageHandler(s.chatService, s.sessionStore, s.messageStore, s.hub)
 
 	// 创建 WebSocket 处理器
 	wsHandler := handler.NewWSHandler(s.hub, s.sessionStore)
