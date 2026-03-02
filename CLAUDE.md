@@ -14,6 +14,14 @@
 - **模块**: github.com/dnd-mcp/dnd-mcp
 - **项目结构**: Monorepo（packages/client + packages/server）
 
+### 环境规定
+
+**重要**: 本项目使用本地环境进行开发和测试，禁止使用 Docker 或其他容器化技术。
+
+- **禁止使用 Docker**: 所有服务（Redis、PostgreSQL 等）必须直接安装在本地系统上运行
+- **原因**: 保持开发环境的简单性和一致性，避免容器化带来的额外复杂性
+- **本地服务**: 使用项目提供的 PowerShell 脚本启动本地服务（如 `scripts\start-redis.ps1`、`scripts\start-postgres.ps1`）
+
 ### 当前开发状态
 
 | 组件 | 状态 | 说明 |

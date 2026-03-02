@@ -28,33 +28,46 @@ type Migrator struct {
 // NewMigrator creates a new migrator
 func NewMigrator(client *Client) *Migrator {
 	// Resolve migrations path relative to executable
-	// If running from bin directory, look in ../packages/server/internal/store/postgres/migrations
-	// Otherwise, try the relative path from current directory
+	// Try multiple paths in order:
+	// 1. Relative to working directory (for development)
+	// 2. Relative to executable (for production builds)
+	// 3. Multiple candidate paths for different scenarios
+
+	// Candidate paths to try
+	candidatePaths := []string{
+		// When running from packages/server directory
+		"internal/store/postgres/migrations",
+		// When running from packages/server/bin directory
+		"../internal/store/postgres/migrations",
+		// When running from project root
+		"packages/server/internal/store/postgres/migrations",
+		// When running from packages/bin directory
+		"../server/internal/store/postgres/migrations",
+	}
+
+	// Try each candidate path
+	for _, candidatePath := range candidatePaths {
+		if _, err := os.Stat(candidatePath); err == nil {
+			return &Migrator{
+				client:         client,
+				migrationsPath: candidatePath,
+			}
+		}
+	}
+
+	// Try path relative to executable as last resort
 	exePath, err := os.Executable()
-	if err != nil {
-		// Fallback to relative path
-		return &Migrator{
-			client:         client,
-			migrationsPath: "internal/store/postgres/migrations",
-		}
-	}
-
-	// Try path relative to executable (for running from bin/)
-	binDir := filepath.Dir(exePath)
-	candidatePath := filepath.Join(binDir, "../packages/server/internal/store/postgres/migrations")
-	if _, err := os.Stat(candidatePath); err == nil {
-		return &Migrator{
-			client:         client,
-			migrationsPath: candidatePath,
-		}
-	}
-
-	// Try path relative to working directory
-	candidatePath = filepath.Join("internal/store/postgres/migrations")
-	if _, err := os.Stat(candidatePath); err == nil {
-		return &Migrator{
-			client:         client,
-			migrationsPath: candidatePath,
+	if err == nil {
+		binDir := filepath.Dir(exePath)
+		// Try relative to executable
+		for _, relPath := range []string{"../internal/store/postgres/migrations", "internal/store/postgres/migrations"} {
+			candidatePath := filepath.Join(binDir, relPath)
+			if _, err := os.Stat(candidatePath); err == nil {
+				return &Migrator{
+					client:         client,
+					migrationsPath: candidatePath,
+				}
+			}
 		}
 	}
 

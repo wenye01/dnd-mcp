@@ -36,7 +36,7 @@ type ServerProcess struct {
 func buildBinary(t *testing.T) string {
 	// Get project root directory
 	_, filename, _, _ := runtime.Caller(0)
-	projectRoot := filepath.Join(filepath.Dir(filename), "..", "..", "..")
+	projectRoot := filepath.Join(filepath.Dir(filename), "..", "..")
 	binaryName := "dnd-server-test"
 	if runtime.GOOS == "windows" {
 		binaryName += ".exe"
@@ -225,9 +225,9 @@ func TestServerStartup(t *testing.T) {
 		err = json.Unmarshal(body, &result)
 		require.NoError(t, err)
 
-		assert.Equal(t, "2024-11-05", result["protocol_version"])
-		serverInfo, ok := result["server_info"].(map[string]interface{})
-		require.True(t, ok, "server_info not found in response")
+		assert.Equal(t, "2024-11-05", result["protocolVersion"])
+		serverInfo, ok := result["serverInfo"].(map[string]interface{})
+		require.True(t, ok, "serverInfo not found in response")
 		assert.Equal(t, "dnd-mcp-server", serverInfo["name"])
 		t.Logf("MCP Initialize passed: %s", string(body))
 	})

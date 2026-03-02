@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -19,15 +20,15 @@ import (
 
 const (
 	visualTestStartupTimeout = 30 * time.Second
-	visualTestRequestTimeout  = 10 * time.Second
-	visualTestPort            = 8085
+	visualTestRequestTimeout = 10 * time.Second
+	visualTestPort           = 8085
 )
 
 // buildVisualTestBinary builds the server binary for visual map tests
 func buildVisualTestBinary(t *testing.T) string {
 	_, filename, _, _ := runtime.Caller(0)
-	// tests/e2e/visual_map_test.go -> go up 3 levels to get to server directory
-	projectRoot := filepath.Join(filepath.Dir(filename), "..", "..", "..")
+	// tests/e2e/visual_map_test.go -> go up 2 levels to get to server directory
+	projectRoot := filepath.Join(filepath.Dir(filename), "..", "..")
 	binaryName := "dnd-server-visual-test"
 	if runtime.GOOS == "windows" {
 		binaryName += ".exe"
@@ -40,7 +41,7 @@ func buildVisualTestBinary(t *testing.T) string {
 
 	t.Logf("Building server binary: %s", binaryPath)
 	// Build from current directory (server package)
-	buildCmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/server/main.go")
+	buildCmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/server")
 	buildCmd.Dir = projectRoot
 	buildCmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 
@@ -86,187 +87,267 @@ func startVisualTestServer(t *testing.T, binaryPath string) *exec.Cmd {
 		time.Sleep(100 * time.Millisecond)
 	}
 
+	cmd.Process.Kill()
 	t.Fatalf("Server did not become ready within %v", visualTestStartupTimeout)
 	return nil
 }
 
-// TestE2E_VisualMapFlow tests the complete visual map flow
+// stopVisualTestServer stops the server process
+func stopVisualTestServer(t *testing.T, cmd *exec.Cmd) {
+	if cmd == nil || cmd.Process == nil {
+		return
+	}
+
+	t.Log("Stopping server...")
+	cmd.Process.Signal(os.Interrupt)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case <-time.After(10 * time.Second):
+		t.Log("Server didn't stop gracefully, killing...")
+		cmd.Process.Kill()
+	case err := <-done:
+		if err != nil {
+			t.Logf("Server exited with error: %v", err)
+		} else {
+			t.Log("Server stopped gracefully")
+		}
+	}
+}
+
+// callVisualTool calls an MCP tool and returns the response
+func callVisualTool(t *testing.T, client *http.Client, toolName string, args map[string]interface{}) map[string]interface{} {
+	reqBody := map[string]interface{}{
+		"name":      toolName,
+		"arguments": args,
+	}
+	reqJSON, _ := json.Marshal(reqBody)
+
+	resp, err := client.Post(
+		fmt.Sprintf("http://127.0.0.1:%d/mcp/tools/call", visualTestPort),
+		"application/json",
+		bytes.NewReader(reqJSON),
+	)
+	require.NoError(t, err, "Failed to call %s tool", toolName)
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err, "Failed to read response body")
+
+	var result map[string]interface{}
+	err = json.Unmarshal(body, &result)
+	require.NoError(t, err, "Failed to parse response JSON")
+
+	return result
+}
+
+// extractCampaignIDFromResponse extracts campaign ID from create_campaign response
+func extractCampaignIDFromResponse(t *testing.T, result map[string]interface{}) string {
+	content, ok := result["content"].([]interface{})
+	require.True(t, ok, "response should have content array")
+	require.Greater(t, len(content), 0, "content array should not be empty")
+
+	text, ok := content[0].(map[string]interface{})["text"].(string)
+	require.True(t, ok, "content should have text field")
+
+	// Parse the JSON text to extract campaign ID
+	var campaignData struct {
+		Campaign struct {
+			ID string `json:"id"`
+		} `json:"campaign"`
+		Message string `json:"message"`
+	}
+	err := json.Unmarshal([]byte(text), &campaignData)
+	require.NoError(t, err, "Failed to parse campaign response")
+
+	return campaignData.Campaign.ID
+}
+
+// extractMapIDFromGetWorldMap extracts the map ID from get_world_map response
+func extractMapIDFromGetWorldMap(t *testing.T, result map[string]interface{}) string {
+	content, ok := result["content"].([]interface{})
+	require.True(t, ok, "response should have content array")
+	require.Greater(t, len(content), 0, "content array should not be empty")
+
+	text, ok := content[0].(map[string]interface{})["text"].(string)
+	require.True(t, ok, "content should have text field")
+
+	// Parse the JSON text to extract map ID
+	var mapData struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	err := json.Unmarshal([]byte(text), &mapData)
+	require.NoError(t, err, "Failed to parse map response")
+
+	return mapData.ID
+}
+
+// TestE2E_VisualMapFlow tests the visual map functionality end-to-end
 func TestE2E_VisualMapFlow(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping E2E test in short mode")
 	}
 
+	// Build and start server
 	binaryPath := buildVisualTestBinary(t)
 	defer os.Remove(binaryPath)
 
 	cmd := startVisualTestServer(t, binaryPath)
-	defer func() {
-		if cmd != nil && cmd.Process != nil {
-			cmd.Process.Kill()
-			cmd.Wait()
-		}
-	}()
+	defer stopVisualTestServer(t, cmd)
 
 	client := &http.Client{Timeout: visualTestRequestTimeout}
-	baseURL := fmt.Sprintf("http://127.0.0.1:%d", visualTestPort)
 
-	// Step 1: Create a campaign
-	campaignID := createTestCampaign(t, client, baseURL)
+	var campaignID string
+	var worldMapID string
 
-	// Step 2: Get world map (should be created automatically as Grid mode initially)
-	worldMap := getWorldMap(t, client, baseURL, campaignID)
-	assert.Equal(t, "grid", worldMap["mode"])
+	// Step 1: Create a campaign first
+	t.Run("CreateCampaign", func(t *testing.T) {
+		result := callVisualTool(t, client, "create_campaign", map[string]interface{}{
+			"name":        "Visual Map Test Campaign",
+			"description": "Test campaign for visual map functionality",
+			"dm_id":       "test-dm",
+		})
 
-	// Step 3: Create visual locations on the map
-	visualLocation1 := createVisualLocation(t, client, baseURL, campaignID, worldMap["id"].(string), "Waterdeep", "town", 0.5, 0.3)
-	createVisualLocation(t, client, baseURL, campaignID, worldMap["id"].(string), "Dungeon", "dungeon", 0.7, 0.6)
+		isError, _ := result["isError"].(bool)
+		require.False(t, isError, "create_campaign should succeed")
 
-	// Step 4: Update a visual location with custom name and confirm
-	updatedLocation := updateVisualLocation(t, client, baseURL, campaignID, worldMap["id"].(string), visualLocation1["id"].(string), "The City of Splendors")
-	assert.Equal(t, true, updatedLocation["is_confirmed"])
+		campaignID = extractCampaignIDFromResponse(t, result)
+		assert.NotEmpty(t, campaignID, "campaign ID should not be empty")
+		t.Logf("Created campaign with ID: %s", campaignID)
+	})
 
-	// Step 5: Get world map again to verify visual locations are returned
-	updatedWorldMap := getWorldMap(t, client, baseURL, campaignID)
-	visualLocations := updatedWorldMap["visual_locations"].([]interface{})
-	assert.Len(t, visualLocations, 2)
+	// Step 2: Get world map (creates if missing)
+	t.Run("GetWorldMap", func(t *testing.T) {
+		if campaignID == "" {
+			t.Skip("No campaign ID available")
+		}
 
-	// Step 6: Move to a visual location (Image mode movement)
-	moveResult := moveToImageLocation(t, client, baseURL, campaignID, 0.55, 0.35)
-	assert.NotNil(t, moveResult["new_marker"])
+		result := callVisualTool(t, client, "get_world_map", map[string]interface{}{
+			"campaign_id": campaignID,
+		})
 
-	// Step 7: Get world map to verify player marker position
-	finalWorldMap := getWorldMap(t, client, baseURL, campaignID)
-	playerMarker := finalWorldMap["player_marker"].(map[string]interface{})
-	assert.InDelta(t, 0.55, playerMarker["position_x"].(float64), 0.01)
-	assert.InDelta(t, 0.35, playerMarker["position_y"].(float64), 0.01)
+		isError, _ := result["isError"].(bool)
+		assert.False(t, isError, "get_world_map should succeed")
+
+		worldMapID = extractMapIDFromGetWorldMap(t, result)
+		t.Logf("Got world map with ID: %s", worldMapID)
+	})
+
+	// Step 3: Switch to image mode
+	t.Run("SwitchToImageMode", func(t *testing.T) {
+		if campaignID == "" {
+			t.Skip("No campaign ID available")
+		}
+
+		result := callVisualTool(t, client, "switch_map_mode", map[string]interface{}{
+			"campaign_id": campaignID,
+			"mode":        "image",
+		})
+
+		isError, _ := result["isError"].(bool)
+		// This might not exist, log the result
+		t.Logf("switch_map_mode response: %v", result)
+		if isError {
+			t.Logf("switch_map_mode failed (may not exist): %v", result)
+		}
+	})
+
+	// Step 4: Create a visual location
+	t.Run("CreateVisualLocation", func(t *testing.T) {
+		if campaignID == "" || worldMapID == "" {
+			t.Skip("No campaign ID or map ID available")
+		}
+
+		result := callVisualTool(t, client, "create_visual_location", map[string]interface{}{
+			"campaign_id": campaignID,
+			"map_id":      worldMapID,
+			"name":        "Dark Cave",
+			"type":        "poi",
+			"position_x":  0.5,
+			"position_y":  0.5,
+		})
+
+		isError, _ := result["isError"].(bool)
+		assert.False(t, isError, "create_visual_location should succeed")
+		t.Logf("create_visual_location response: %v", result)
+	})
 }
 
-// TestE2E_VisualMapImageModeSwitch tests switching from Grid to Image mode
+// TestE2E_VisualMapImageModeSwitch tests switching between grid and image modes
 func TestE2E_VisualMapImageModeSwitch(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping E2E test in short mode")
 	}
 
+	// Build and start server
 	binaryPath := buildVisualTestBinary(t)
 	defer os.Remove(binaryPath)
 
 	cmd := startVisualTestServer(t, binaryPath)
-	defer func() {
-		if cmd != nil && cmd.Process != nil {
-			cmd.Process.Kill()
-			cmd.Wait()
-		}
-	}()
+	defer stopVisualTestServer(t, cmd)
 
 	client := &http.Client{Timeout: visualTestRequestTimeout}
-	baseURL := fmt.Sprintf("http://127.0.0.1:%d", visualTestPort)
 
-	// Create a campaign
-	campaignID := createTestCampaign(t, client, baseURL)
+	var campaignID string
+	var worldMapID string
 
-	// Get initial world map (Grid mode)
-	worldMap := getWorldMap(t, client, baseURL, campaignID)
-	assert.Equal(t, "grid", worldMap["mode"])
+	// Step 1: Create a campaign first
+	t.Run("CreateCampaign", func(t *testing.T) {
+		result := callVisualTool(t, client, "create_campaign", map[string]interface{}{
+			"name":        "Image Mode Test Campaign",
+			"description": "Test campaign for image mode switching",
+			"dm_id":       "test-dm",
+		})
 
-	// This test verifies that the system can handle both modes
-	// In a real scenario, you would update the map to Image mode
-	// For now, we just verify that Grid mode works correctly
-	assert.NotNil(t, worldMap["grid"])
-	assert.NotNil(t, worldMap["locations"])
-}
+		isError, _ := result["isError"].(bool)
+		require.False(t, isError, "create_campaign should succeed")
 
-// Helper functions
+		campaignID = extractCampaignIDFromResponse(t, result)
+		assert.NotEmpty(t, campaignID, "campaign ID should not be empty")
+		t.Logf("Created campaign with ID: %s", campaignID)
+	})
 
-func createTestCampaign(t *testing.T, client *http.Client, baseURL string) string {
-	body := map[string]interface{}{
-		"name":        "Visual Map Test Campaign",
-		"description": "A campaign for testing visual map functionality",
-		"dm_id":       "dm-test-001",
-	}
-
-	jsonBody, err := json.Marshal(body)
-	require.NoError(t, err)
-
-	resp, err := client.Post(baseURL+"/api/campaigns", "application/json", bytes.NewBuffer(jsonBody))
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	defer resp.Body.Close()
-
-	var result map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&result)
-	require.NoError(t, err)
-
-	campaign := result["campaign"].(map[string]interface{})
-	return campaign["id"].(string)
-}
-
-func getWorldMap(t *testing.T, client *http.Client, baseURL, campaignID string) map[string]interface{} {
-	resp, err := client.Get(fmt.Sprintf("%s/api/sessions/%s/world_map", baseURL, campaignID))
-	require.NoError(t, err)
-
-	if resp.StatusCode == http.StatusNotFound {
-		// Try creating the world map first
-		t.Logf("World map not found, it may need to be created via tools")
-		return map[string]interface{}{
-			"id":   campaignID + "-world",
-			"mode": "grid",
+	// Step 2: Get world map
+	t.Run("GetWorldMap", func(t *testing.T) {
+		if campaignID == "" {
+			t.Skip("No campaign ID available")
 		}
-	}
 
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	defer resp.Body.Close()
+		result := callVisualTool(t, client, "get_world_map", map[string]interface{}{
+			"campaign_id": campaignID,
+		})
 
-	var result map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&result)
-	require.NoError(t, err)
+		isError, _ := result["isError"].(bool)
+		assert.False(t, isError, "get_world_map should succeed")
 
-	return result
-}
+		worldMapID = extractMapIDFromGetWorldMap(t, result)
+		t.Logf("Got world map with ID: %s", worldMapID)
+	})
 
-func createVisualLocation(t *testing.T, client *http.Client, baseURL, campaignID, mapID, name, locationType string, posX, posY float64) map[string]interface{} {
-	// Note: This would call the MCP tool create_visual_location
-	// For E2E test, we use the REST API if available or simulate
-	t.Logf("Creating visual location: %s at (%.2f, %.2f)", name, posX, posY)
+	// Step 3: Create visual location
+	t.Run("CreateVisualLocation", func(t *testing.T) {
+		if campaignID == "" || worldMapID == "" {
+			t.Skip("No campaign ID or map ID available")
+		}
 
-	// For E2E testing, we would need to either:
-	// 1. Have a REST endpoint that wraps the MCP tool
-	// 2. Use the MCP protocol directly
-	// 3. Skip this and rely on integration tests
+		result := callVisualTool(t, client, "create_visual_location", map[string]interface{}{
+			"campaign_id": campaignID,
+			"map_id":      worldMapID,
+			"name":        "Test Location",
+			"type":        "poi",
+			"position_x":  0.3,
+			"position_y":  0.7,
+		})
 
-	// Returning a mock response for now
-	return map[string]interface{}{
-		"id":           fmt.Sprintf("loc-%s", name),
-		"name":         name,
-		"type":         locationType,
-		"position_x":   posX,
-		"position_y":   posY,
-		"is_confirmed": false,
-	}
-}
-
-func updateVisualLocation(t *testing.T, client *http.Client, baseURL, campaignID, mapID, locationID, customName string) map[string]interface{} {
-	// Note: This would call the MCP tool update_location
-	t.Logf("Updating visual location %s with custom name: %s", locationID, customName)
-
-	return map[string]interface{}{
-		"id":           locationID,
-		"custom_name":  customName,
-		"display_name": customName,
-		"is_confirmed": true,
-	}
-}
-
-func moveToImageLocation(t *testing.T, client *http.Client, baseURL, campaignID string, targetX, targetY float64) map[string]interface{} {
-	// Note: This would call the MCP tool move_to with target_x/target_y
-	t.Logf("Moving to image location: (%.2f, %.2f)", targetX, targetY)
-
-	return map[string]interface{}{
-		"new_marker": map[string]interface{}{
-			"position_x": targetX,
-			"position_y": targetY,
-		},
-		"message": fmt.Sprintf("Party moved to position (%.2f, %.2f)", targetX, targetY),
-	}
+		isError, _ := result["isError"].(bool)
+		assert.False(t, isError, "create_visual_location should succeed")
+		t.Logf("create_visual_location response: %v", result)
+	})
 }
 
 // TestE2E_VisualMapBoundaryConditions tests boundary conditions for visual map

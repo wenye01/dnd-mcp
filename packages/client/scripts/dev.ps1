@@ -22,33 +22,21 @@ catch {
     exit 1
 }
 
-# Check Docker installation
-try {
-    $dockerVersion = docker --version
-    Write-Host "  Docker: $dockerVersion" -ForegroundColor Green
+# Check Redis installation
+$RedisPath = "C:\Tools\Redis-8.4.0-Windows-x64-msys2-with-Service\redis-server.exe"
+if (Test-Path $RedisPath) {
+    Write-Host "  Redis: Found at $RedisPath" -ForegroundColor Green
 }
-catch {
-    Write-Host "  WARNING: Docker is not installed!" -ForegroundColor Yellow
-    Write-Host "     Download from: https://www.docker.com/products/docker-desktop" -ForegroundColor Yellow
-    Write-Host "     Redis is required for this application" -ForegroundColor Yellow
+else {
+    Write-Host "  WARNING: Redis not found!" -ForegroundColor Yellow
+    Write-Host "     Please install Redis or update path in this script" -ForegroundColor Yellow
 }
 
 Write-Host ""
 Write-Host "Starting Redis..." -ForegroundColor Cyan
 
-# Start Redis
-$existingContainer = docker ps -a --filter "name=dnd-redis" --format "{{.Names}}" 2>$null
-
-if ($existingContainer -eq "dnd-redis") {
-    Write-Host "  Starting existing Redis container..." -ForegroundColor Yellow
-    docker start dnd-redis | Out-Null
-    Write-Host "  Redis started" -ForegroundColor Green
-}
-else {
-    Write-Host "  Creating new Redis container..." -ForegroundColor Yellow
-    docker run -d --name dnd-redis -p 6379:6379 redis:7-alpine | Out-Null
-    Write-Host "  Redis created and started" -ForegroundColor Green
-}
+# Start Redis using local installation
+& $PSScriptRoot\start-redis.ps1 -Action start
 
 Write-Host ""
 Write-Host "Building project..." -ForegroundColor Cyan

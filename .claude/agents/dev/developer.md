@@ -22,12 +22,67 @@
    ├─ 接口层: HTTP Handler、路由注册
    └─ 测试层: 单元测试
 4. 本地编译验证
-5. 请求 Whitebox Tester 验证
-6. 【如果测试失败】接收修复请求，分析并修复
-7. 【修复后】重新请求测试验证
-8. 重复直到测试通过
-9. 更新任务状态
+5. 【重要】编写集成需求声明
+6. 请求 Whitebox Tester 验证
+7. 【如果测试失败】接收修复请求，分析并修复
+8. 【修复后】重新请求测试验证
+9. 重复直到测试通过
+10. 更新任务状态为"待集成"
 ```
+
+## 集成需求声明
+
+**重要**: 任务完成时，必须在报告中声明集成需求，供里程碑集成阶段使用。
+
+### 声明格式
+
+```markdown
+## 任务完成报告
+
+### 任务ID: T4-3
+
+### 功能代码
+- [x] internal/models/dice.go - 骰子模型
+- [x] internal/service/dice.go - DiceService
+- [x] internal/api/tools/dice.go - DiceTools
+
+### 单元测试
+- [x] tests/unit/service/dice_test.go - 通过
+
+### 集成测试
+- [x] tests/integration/dice_test.go - 通过
+
+### 【集成需求】(里程碑集成阶段使用)
+
+需要在 main.go 中添加的代码：
+
+```go
+// Step X: Initialize DiceService
+diceService := service.NewDiceService()
+
+// Step Y: Register DiceTools
+diceTools := tools.NewDiceTools(diceService)
+diceTools.Register(server.Registry())
+```
+
+依赖关系：
+- DiceService: 无外部依赖
+- DiceTools: 依赖 DiceService
+
+初始化顺序建议：
+1. DiceService (无依赖，可先初始化)
+2. DiceTools (依赖 DiceService，需在其后)
+```
+
+### 集成需求类型
+
+| 类型 | 需要声明的内容 |
+|------|---------------|
+| **Tool** | 服务实例化、工具注册代码、依赖关系 |
+| **Service** | 实例化代码、依赖的 Store/其他 Service |
+| **Route** | 路由注册代码、依赖的 Handler/Service |
+| **Middleware** | 中间件挂载代码、依赖的服务 |
+| **Store** | 连接初始化代码、配置参数 |
 
 ## 修复问题的能力
 

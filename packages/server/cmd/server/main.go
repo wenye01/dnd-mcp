@@ -12,6 +12,10 @@ import (
 	"time"
 
 	"github.com/dnd-mcp/server/internal/api/tools"
+	"github.com/dnd-mcp/server/internal/importer"
+	"github.com/dnd-mcp/server/internal/importer/converter"
+	"github.com/dnd-mcp/server/internal/importer/format"
+	importer_parser "github.com/dnd-mcp/server/internal/importer/parser"
 	"github.com/dnd-mcp/server/internal/mcp"
 	"github.com/dnd-mcp/server/internal/service"
 	"github.com/dnd-mcp/server/internal/store/postgres"
@@ -98,6 +102,15 @@ func main() {
 	combatService := service.NewCombatService(combatStore, characterStore, campaignStore, diceService)
 	mapService := service.NewMapServiceWithCharacters(mapStore, campaignStore, gameStateStore, characterStore)
 
+	// Step 6.5: Initialize import service
+	importService := importer.NewImportService(mapStore)
+	importService.RegisterParser(importer_parser.NewUVTTParser())
+	importService.RegisterParser(importer_parser.NewFVTTSceneParser())
+	mapConverter := converter.NewMapConverter()
+	importService.RegisterConverterForFormat(mapConverter, format.FormatUVTT)
+	importService.RegisterConverterForFormat(mapConverter, format.FormatFVTTScene)
+	importService.RegisterConverterForFormat(mapConverter, format.FormatFVTTModule)
+
 	// Step 7: Register Tools
 	campaignTools := tools.NewCampaignTools(campaignService)
 	campaignTools.Register(server.Registry())
@@ -118,6 +131,11 @@ func main() {
 	mapTools := tools.NewMapToolsWithCharacters(mapService)
 	mapTools.Register(server.Registry())
 	fmt.Println("Map tools registered: get_world_map, move_to, move_token, enter_battle_map, get_battle_map, exit_battle_map, create_visual_location, update_location")
+
+	// Step 7.5: Register Import Tools
+	importTools := tools.NewImportTools(importService)
+	importTools.Register(server.Registry())
+	fmt.Println("Import tools registered: import_map, import_map_from_module")
 
 	// Step 8: Start HTTP server in goroutine
 	go func() {

@@ -219,7 +219,20 @@ func (m *MockCharacterStore) GetByCampaignAndID(ctx context.Context, campaignID,
 func (m *MockCharacterStore) List(ctx context.Context, filter *store.CharacterFilter) ([]*models.Character, error) {
 	var result []*models.Character
 	for _, c := range m.characters {
+		// Filter by CampaignID
 		if filter != nil && filter.CampaignID != "" && c.CampaignID != filter.CampaignID {
+			continue
+		}
+		// Filter by IsNPC
+		if filter != nil && filter.IsNPC != nil && c.IsNPC != *filter.IsNPC {
+			continue
+		}
+		// Filter by PlayerID
+		if filter != nil && filter.PlayerID != "" && c.PlayerID != filter.PlayerID {
+			continue
+		}
+		// Filter by NPCType
+		if filter != nil && filter.NPCType != "" && c.NPCType != filter.NPCType {
 			continue
 		}
 		result = append(result, c)

@@ -18,6 +18,17 @@
 4. **健康监控**: 持续监控服务状态
 5. **问题排查**: 处理启动失败和运行时问题
 
+## 本地环境要求
+
+### Redis
+- 安装路径: `C:\Tools\Redis-8.4.0-Windows-x64-msys2-with-Service\`
+- 端口: 6379
+
+### PostgreSQL
+- 支持版本: 14-17
+- 端口: 5432
+- 默认用户: postgres / postgres
+
 ## 一键部署脚本（推荐）
 
 ### 部署 Server
@@ -25,14 +36,26 @@
 ```powershell
 cd packages/server
 
-# 一键部署（包含 PostgreSQL 启动、数据库初始化、构建、启动）
-.\scripts\deploy.ps1
+# 启动 PostgreSQL（本地）
+.\scripts\start-postgres.ps1
 
-# 可选参数：
-# -SkipDb      跳过数据库设置（数据库已就绪时使用）
-# -SkipBuild   跳过构建（二进制已存在时使用）
-# -Force       强制重建数据库
-# -LogLevel    日志级别（默认 info）
+# 初始化数据库（首次运行）
+.\scripts\init-db.ps1
+
+# 构建
+.\scripts\build.ps1
+
+# 启动（设置环境变量）
+$env:POSTGRES_HOST = "localhost"
+$env:POSTGRES_PORT = "5432"
+$env:POSTGRES_USER = "postgres"
+$env:POSTGRES_PASSWORD = "postgres"
+$env:POSTGRES_DBNAME = "dnd_server"
+$env:POSTGRES_SSLMODE = "disable"
+$env:HTTP_HOST = "0.0.0.0"
+$env:HTTP_PORT = "8081"
+$env:LOG_LEVEL = "info"
+.\bin\dnd-server.exe
 ```
 
 ### 部署 Client
@@ -40,7 +63,7 @@ cd packages/server
 ```powershell
 cd packages/client
 
-# 启动 Redis
+# 启动 Redis（本地）
 .\scripts\start-redis.ps1
 
 # 构建
@@ -51,7 +74,7 @@ $env:REDIS_HOST = "localhost:6379"
 $env:HTTP_HOST = "0.0.0.0"
 $env:HTTP_PORT = "8080"
 $env:LOG_LEVEL = "info"
-Start-Process -FilePath ".\bin\dnd-client.exe" -RedirectStandardOutput "client.log" -RedirectStandardError "client-error.log"
+.\bin\dnd-client.exe
 ```
 
 ## 手动部署流程
@@ -59,13 +82,13 @@ Start-Process -FilePath ".\bin\dnd-client.exe" -RedirectStandardOutput "client.l
 ### 1. 环境检查
 
 ```powershell
-# 检查 Redis (Client 需要)
-docker ps --filter "name=dnd-redis" --format "{{.Names}}"
-# 期望: dnd-redis
+# 检查 Redis 是否运行
+Get-Process -Name "redis-server" -ErrorAction SilentlyContinue
+# 期望: 有进程运行
 
-# 检查 PostgreSQL (Server 需要)
-docker ps --filter "name=dnd-postgres" --format "{{.Names}}"
-# 期望: dnd-postgres
+# 检查 PostgreSQL 是否运行
+Get-Process -Name "postgres" -ErrorAction SilentlyContinue
+# 期望: 有进程运行
 
 # 检查端口占用
 Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue
@@ -86,8 +109,6 @@ cd packages/client
 
 ```powershell
 cd packages/server
-
-# 启动 PostgreSQL 容器
 .\scripts\start-postgres.ps1
 
 # 初始化数据库（首次运行）
@@ -120,8 +141,8 @@ cd packages/server
 # 设置环境变量
 $env:POSTGRES_HOST = "localhost"
 $env:POSTGRES_PORT = "5432"
-$env:POSTGRES_USER = "dnd"
-$env:POSTGRES_PASSWORD = "password"
+$env:POSTGRES_USER = "postgres"
+$env:POSTGRES_PASSWORD = "postgres"
 $env:POSTGRES_DBNAME = "dnd_server"
 $env:POSTGRES_SSLMODE = "disable"
 $env:HTTP_HOST = "0.0.0.0"
@@ -129,11 +150,8 @@ $env:HTTP_PORT = "8081"
 $env:LOG_LEVEL = "info"
 $env:LOG_FORMAT = "text"
 
-# 启动服务（后台运行）
-Start-Process -FilePath ".\bin\dnd-server.exe" -RedirectStandardOutput "server.log" -RedirectStandardError "server-error.log"
-
-# 等待启动
-Start-Sleep -Seconds 3
+# 启动服务
+.\bin\dnd-server.exe
 ```
 
 #### 启动 Client
@@ -147,11 +165,8 @@ $env:HTTP_HOST = "0.0.0.0"
 $env:HTTP_PORT = "8080"
 $env:LOG_LEVEL = "info"
 
-# 启动服务（后台运行）
-Start-Process -FilePath ".\bin\dnd-client.exe" -RedirectStandardOutput "client.log" -RedirectStandardError "client-error.log"
-
-# 等待启动
-Start-Sleep -Seconds 3
+# 启动服务
+.\bin\dnd-client.exe
 ```
 
 ### 5. 健康检查
@@ -163,7 +178,6 @@ if ($response.StatusCode -eq 200) {
     Write-Host "Server 启动成功"
 } else {
     Write-Host "Server 启动失败"
-    Get-Content packages/server/server-error.log
 }
 
 # 检查 Client
@@ -172,7 +186,6 @@ if ($response.StatusCode -eq 200) {
     Write-Host "Client 启动成功"
 } else {
     Write-Host "Client 启动失败"
-    Get-Content packages/client/client-error.log
 }
 ```
 
@@ -192,8 +205,8 @@ LOG_LEVEL=info
 ```
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
-POSTGRES_USER=dnd
-POSTGRES_PASSWORD=password
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
 POSTGRES_DBNAME=dnd_server
 POSTGRES_SSLMODE=disable
 HTTP_HOST=0.0.0.0
@@ -209,24 +222,16 @@ LOG_FORMAT=text
 | 问题 | 可能原因 | 解决方案 |
 |------|---------|---------|
 | 端口被占用 | 旧进程未终止 | 终止占用端口的进程 |
-| Redis 连接失败 | Redis 未启动 | 启动 Redis |
-| PostgreSQL 连接失败 | 数据库未启动或配置错误 | 检查数据库状态和连接字符串 |
-| 构建失败 | 依赖问题 | go mod tidy |
-| 启动后立即退出 | 配置错误 | 检查日志 |
+| Redis 连接失败 | Redis 未启动 | 运行 `.\scripts\start-redis.ps1` |
+| PostgreSQL 连接失败 | 数据库未启动或配置错误 | 运行 `.\scripts\start-postgres.ps1` |
+| 构建失败 | 依赖问题 | `go mod tidy` |
 
 ### 日志查看
 
 ```powershell
-# 查看 Client 日志
-Get-Content packages/client/client.log -Tail 50
-Get-Content packages/client/client-error.log
-
-# 查看 Server 日志
-Get-Content packages/server/server.log -Tail 50
-Get-Content packages/server/server-error.log
-
-# 实时监控
-Get-Content packages/client/client.log -Wait
+# 服务日志通常输出到控制台
+# 如需后台运行，可重定向输出
+.\bin\dnd-server.exe 2>&1 | Tee-Object -FilePath server.log
 ```
 
 ## 输出格式
@@ -249,7 +254,6 @@ Get-Content packages/client/client.log -Wait
 ### 访问信息
 - Client 地址: http://localhost:8080
 - Server 地址: http://localhost:8081
-- 日志目录: packages/*/logs/
 
 ### 问题记录
 | 问题 | 状态 | 解决方案 |
@@ -307,12 +311,10 @@ Get-Process -Name "dnd-server" -ErrorAction SilentlyContinue | Stop-Process -For
 Get-Process -Name "dnd-*" -ErrorAction SilentlyContinue | Stop-Process -Force
 
 # 停止 PostgreSQL
-docker stop dnd-postgres
+cd packages/server
+.\scripts\start-postgres.ps1 -Action stop
 
 # 停止 Redis
-docker stop dnd-redis
-
-# 清理日志
-Remove-Item packages/client/*.log -ErrorAction SilentlyContinue
-Remove-Item packages/server/*.log -ErrorAction SilentlyContinue
+cd packages/client
+.\scripts\start-redis.ps1 -Action stop
 ```

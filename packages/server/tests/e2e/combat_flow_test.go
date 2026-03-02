@@ -26,7 +26,7 @@ const (
 // buildCombatTestBinary builds the server binary and returns the path
 func buildCombatTestBinary(t *testing.T) string {
 	_, filename, _, _ := runtime.Caller(0)
-	projectRoot := filepath.Join(filepath.Dir(filename), "..", "..", "..")
+	projectRoot := filepath.Join(filepath.Dir(filename), "..", "..")
 	binaryName := "dnd-server-combat-test"
 	if runtime.GOOS == "windows" {
 		binaryName += ".exe"

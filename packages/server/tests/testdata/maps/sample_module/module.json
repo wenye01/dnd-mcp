@@ -1,0 +1,30 @@
+{
+  "id": "test-maps-module",
+  "title": "Test Maps Module",
+  "description": "A minimal test module for map import functionality",
+  "version": "1.0.0",
+  "compatibility": {
+    "minimum": "10",
+    "verified": "12"
+  },
+  "authors": [
+    {
+      "name": "Test Author"
+    }
+  ],
+  "esmodules": [],
+  "styles": [],
+  "packs": [
+    {
+      "name": "scenes",
+      "label": "Test Scenes",
+      "path": "packs/scenes.db",
+      "type": "Scene"
+    }
+  ],
+  "packFolders": [],
+  "languages": [],
+  "url": "https://example.com",
+  "manifest": "https://example.com/module.json",
+  "download": "https://example.com/module.zip"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "sample-ndjson-module",
+  "title": "Sample NDJSON Module",
+  "description": "A sample FVTT module for testing NDJSON parsing",
+  "version": "1.0.0",
+  "authors": [
+    {
+      "name": "Test Author"
+    }
+  ],
+  "compatibility": {
+    "minimum": "10",
+    "verified": "12"
+  },
+  "packs": [
+    {
+      "name": "scenes",
+      "label": "Sample Scenes",
+      "path": "packs/scenes.db",
+      "type": "Scene"
+    }
+  ]
+}
