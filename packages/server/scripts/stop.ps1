@@ -1,9 +1,6 @@
 # Stop DND MCP Server (Windows PowerShell)
 # -*- coding: utf-8 -*-
 
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
-
 param(
     [switch]$All,
     [switch]$Db,
@@ -12,10 +9,19 @@ param(
 
 $AppName = "dnd-server"
 $ClientAppName = "dnd-client"
-$PostgresContainer = "dnd-postgres"
-$RedisContainer = "dnd-redis"
 $HttpPort = 8081
 $ClientHttpPort = 8080
+
+$PostgresBinPaths = @(
+    "C:\Program Files\PostgreSQL\18\bin",
+    "C:\Program Files\PostgreSQL\17\bin",
+    "C:\Program Files\PostgreSQL\16\bin",
+    "C:\Program Files\PostgreSQL\15\bin",
+    "C:\Program Files\PostgreSQL\14\bin",
+    "C:\Tools\pgsql\bin",
+    "C:\tools\postgresql\bin"
+)
+$PostgresDataDir = "$env:APPDATA\dnd-mcp\postgres-data"
 
 function Write-Step {
     param([string]$Message)
@@ -30,7 +36,6 @@ function Write-Success {
 function Stop-Server {
     Write-Step "Stopping DND MCP Server..."
 
-    # Stop by process name
     $process = Get-Process -Name $AppName -ErrorAction SilentlyContinue
     if ($process) {
         $process | Stop-Process -Force
@@ -40,7 +45,6 @@ function Stop-Server {
         Write-Host "  No running server process found" -ForegroundColor Yellow
     }
 
-    # Check port and kill if needed
     $conn = Get-NetTCPConnection -LocalPort $HttpPort -ErrorAction SilentlyContinue
     if ($conn) {
         $pid = $conn.OwningProcess
@@ -72,26 +76,45 @@ function Stop-Client {
 function Stop-Postgres {
     Write-Step "Stopping PostgreSQL..."
 
-    $running = docker ps --filter "name=$PostgresContainer" --format "{{.Names}}"
-    if ($running -eq $PostgresContainer) {
-        docker stop $PostgresContainer | Out-Null
-        Write-Success "PostgreSQL container stopped"
+    $pgProc = Get-Process -Name "postgres" -ErrorAction SilentlyContinue
+    if ($pgProc) {
+        $pgBinPath = $null
+        foreach ($path in $PostgresBinPaths) {
+            if (Test-Path "$path\pg_ctl.exe") {
+                $pgBinPath = $path
+                break
+            }
+        }
+
+        if ($pgBinPath) {
+            $env:PGPASSWORD = "postgres"
+            & "$pgBinPath\pg_ctl.exe" stop -D $PostgresDataDir -m fast -w 2>$null
+        }
+
+        Start-Sleep -Seconds 1
+
+        $pgProc = Get-Process -Name "postgres" -ErrorAction SilentlyContinue
+        if ($pgProc) {
+            $pgProc | Stop-Process -Force
+        }
+
+        Write-Success "PostgreSQL stopped"
     }
     else {
-        Write-Host "  PostgreSQL container is not running" -ForegroundColor Yellow
+        Write-Host "  PostgreSQL is not running" -ForegroundColor Yellow
     }
 }
 
 function Stop-Redis {
     Write-Step "Stopping Redis..."
 
-    $running = docker ps --filter "name=$RedisContainer" --format "{{.Names}}"
-    if ($running -eq $RedisContainer) {
-        docker stop $RedisContainer | Out-Null
-        Write-Success "Redis container stopped"
+    $redisProc = Get-Process -Name "redis-server" -ErrorAction SilentlyContinue
+    if ($redisProc) {
+        $redisProc | Stop-Process -Force
+        Write-Success "Redis stopped"
     }
     else {
-        Write-Host "  Redis container is not running" -ForegroundColor Yellow
+        Write-Host "  Redis is not running" -ForegroundColor Yellow
     }
 }
 
@@ -111,7 +134,6 @@ function Show-Status {
     Write-Host ""
     Write-Host "Status:" -ForegroundColor Cyan
 
-    # Server status
     $serverProcess = Get-Process -Name $AppName -ErrorAction SilentlyContinue
     if ($serverProcess) {
         Write-Host "  Server:  Running (PID: $($serverProcess.Id))" -ForegroundColor Green
@@ -120,7 +142,6 @@ function Show-Status {
         Write-Host "  Server:  Stopped" -ForegroundColor Yellow
     }
 
-    # Client status
     $clientProcess = Get-Process -Name $ClientAppName -ErrorAction SilentlyContinue
     if ($clientProcess) {
         Write-Host "  Client:  Running (PID: $($clientProcess.Id))" -ForegroundColor Green
@@ -129,18 +150,16 @@ function Show-Status {
         Write-Host "  Client:  Stopped" -ForegroundColor Yellow
     }
 
-    # PostgreSQL status
-    $postgresRunning = docker ps --filter "name=$PostgresContainer" --format "{{.Names}}"
-    if ($postgresRunning -eq $PostgresContainer) {
+    $postgresRunning = Get-Process -Name "postgres" -ErrorAction SilentlyContinue
+    if ($postgresRunning) {
         Write-Host "  PostgreSQL: Running" -ForegroundColor Green
     }
     else {
         Write-Host "  PostgreSQL: Stopped" -ForegroundColor Yellow
     }
 
-    # Redis status
-    $redisRunning = docker ps --filter "name=$RedisContainer" --format "{{.Names}}"
-    if ($redisRunning -eq $RedisContainer) {
+    $redisRunning = Get-Process -Name "redis-server" -ErrorAction SilentlyContinue
+    if ($redisRunning) {
         Write-Host "  Redis:   Running" -ForegroundColor Green
     }
     else {

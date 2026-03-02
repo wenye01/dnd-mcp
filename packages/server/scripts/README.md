@@ -2,6 +2,18 @@
 
 本目录包含 DND MCP Server 的部署和管理脚本。
 
+## 环境要求
+
+- **Go 1.24+**: 用于编译和运行服务
+- **PostgreSQL 14+**: 本地安装的 PostgreSQL 数据库
+  - 下载地址: https://www.postgresql.org/download/windows/
+  - 安装后确保 `bin` 目录在 PATH 中或位于以下位置之一:
+    - `C:\Program Files\PostgreSQL\18\bin`
+    - `C:\Program Files\PostgreSQL\17\bin`
+    - `C:\Program Files\PostgreSQL\16\bin`
+    - `C:\Program Files\PostgreSQL\15\bin`
+    - `C:\Program Files\PostgreSQL\14\bin`
+
 ## 脚本概览
 
 | 脚本 | 用途 | 使用场景 |
@@ -9,7 +21,7 @@
 | `deploy.ps1` | 一键部署 | 首次部署或完整重新部署 |
 | `stop.ps1` | 停止服务 | 停止运行中的服务 |
 | `build.ps1` | 构建服务 | 仅编译二进制文件 |
-| `start-postgres.ps1` | 管理 PostgreSQL | 启动/停止数据库容器 |
+| `start-postgres.ps1` | 管理 PostgreSQL | 启动/停止本地数据库 |
 | `init-db.ps1` | 初始化数据库 | 创建数据库和用户 |
 | `test.ps1` | 快速测试 | 运行单元测试和集成测试 |
 | `test-all.ps1` | 完整测试 | 运行所有测试 |
@@ -44,7 +56,7 @@
 # 停止并清理日志
 .\scripts\stop.ps1 -Clean
 
-# 停止所有服务（包括数据库）
+# 停止所有服务（包括 Client、PostgreSQL、Redis）
 .\scripts\stop.ps1 -All
 
 # 仅停止数据库
@@ -56,7 +68,7 @@
 ### deploy.ps1 - 一键部署
 
 自动化完成以下步骤：
-1. 启动 PostgreSQL 容器
+1. 启动本地 PostgreSQL
 2. 初始化数据库和用户
 3. 构建服务二进制
 4. 启动服务
@@ -72,18 +84,17 @@
 
 **参数：**
 - `-All`: 停止所有服务（Server、Client、PostgreSQL、Redis）
-- `-Db`: 仅停止数据库容器
+- `-Db`: 仅停止数据库
 - `-Clean`: 清理日志文件
 
 ### start-postgres.ps1 - PostgreSQL 管理
 
 **参数：**
-- `-Action start`: 启动容器（默认）
-- `-Action stop`: 停止容器
-- `-Action remove`: 删除容器
+- `-Action start`: 启动数据库（默认）
+- `-Action stop`: 停止数据库
 - `-Action status`: 查看状态
-- `-Action reset`: 重置容器
-- `-Reset`: 启动时重置容器
+- `-Action reset`: 重置数据库（删除数据目录并重新初始化）
+- `-Reset`: 启动时重置数据库
 
 **示例：**
 ```powershell
@@ -96,7 +107,7 @@
 # 查看状态
 .\scripts\start-postgres.ps1 -Action status
 
-# 完全重置
+# 完全重置（删除所有数据）
 .\scripts\start-postgres.ps1 -Action reset
 ```
 
@@ -124,7 +135,9 @@
 .\scripts\init-db.ps1 -Force
 ```
 
-## 环境变量
+## 配置
+
+### 环境变量
 
 Server 启动时使用的环境变量：
 
@@ -132,8 +145,8 @@ Server 启动时使用的环境变量：
 # PostgreSQL 配置
 $env:POSTGRES_HOST = "localhost"
 $env:POSTGRES_PORT = "5432"
-$env:POSTGRES_USER = "dnd"
-$env:POSTGRES_PASSWORD = "password"
+$env:POSTGRES_USER = "postgres"
+$env:POSTGRES_PASSWORD = "postgres"
 $env:POSTGRES_DBNAME = "dnd_server"
 $env:POSTGRES_SSLMODE = "disable"
 
@@ -146,7 +159,32 @@ $env:LOG_LEVEL = "info"
 $env:LOG_FORMAT = "text"
 ```
 
+### .env 文件
+
+可以在 `packages/server/.env` 文件中配置环境变量，deploy.ps1 会自动加载：
+
+```env
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DBNAME=dnd_server
+LOG_LEVEL=debug
+```
+
 ## 常见问题
+
+### PostgreSQL 未安装
+
+脚本会在以下位置搜索 PostgreSQL：
+- `C:\Program Files\PostgreSQL\18\bin`
+- `C:\Program Files\PostgreSQL\17\bin`
+- `C:\Program Files\PostgreSQL\16\bin`
+- `C:\Program Files\PostgreSQL\15\bin`
+- `C:\Program Files\PostgreSQL\14\bin`
+- `C:\Tools\pgsql\bin`
+
+如果未找到，请从 https://www.postgresql.org/download/windows/ 下载安装。
 
 ### 端口被占用
 
@@ -161,14 +199,15 @@ Stop-Process -Id <PID> -Force
 ### PostgreSQL 连接失败
 
 ```powershell
-# 检查容器状态
-docker ps -a --filter "name=dnd-postgres"
+# 检查 PostgreSQL 是否运行
+Get-Process -Name postgres
 
-# 查看容器日志
-docker logs dnd-postgres
+# 查看 PostgreSQL 状态
+.\scripts\start-postgres.ps1 -Action status
 
-# 重启容器
-.\scripts\start-postgres.ps1 -Action reset
+# 重启 PostgreSQL
+.\scripts\start-postgres.ps1 -Action stop
+.\scripts\start-postgres.ps1 -Action start
 ```
 
 ### 构建失败
@@ -196,6 +235,20 @@ Get-Content server-error.log
 Get-Content server.log -Wait
 ```
 
+### 重置数据库
+
+```powershell
+# 方法1: 使用 deploy.ps1
+.\scripts\deploy.ps1 -Force
+
+# 方法2: 使用 start-postgres.ps1
+.\scripts\start-postgres.ps1 -Action reset
+
+# 方法3: 手动删除数据目录
+Remove-Item -Recurse -Force "$env:APPDATA\dnd-mcp\postgres-data"
+.\scripts\start-postgres.ps1
+```
+
 ## 与 Client 配合使用
 
 如果需要部署完整的集成环境（Client + Server）：
@@ -216,22 +269,21 @@ $env:HTTP_PORT = "8080"
 Start-Process -FilePath ".\bin\dnd-client.exe" -RedirectStandardOutput "client.log"
 ```
 
-## Docker 容器信息
+## 数据存储位置
 
-| 容器名 | 镜像 | 端口 | 用途 |
-|--------|------|------|------|
-| dnd-postgres | postgres:16-alpine | 5432 | Server 数据库 |
-| dnd-redis | redis:7-alpine | 6379 | Client 缓存 |
+| 数据 | 位置 |
+|------|------|
+| PostgreSQL 数据 | `%APPDATA%\dnd-mcp\postgres-data` |
+| Server 日志 | `packages/server/server.log` |
+| Server 错误日志 | `packages/server/server-error.log` |
+| 构建产物 | `packages/server/bin/` |
+
+## 手动 PSQL 连接
 
 ```powershell
-# 查看所有容器
-docker ps -a
+# 使用 psql 连接数据库
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -h localhost -p 5432 -U postgres -d dnd_server
 
-# 查看容器日志
-docker logs dnd-postgres
-docker logs dnd-redis
-
-# 进入容器
-docker exec -it dnd-postgres psql -U postgres
-docker exec -it dnd-redis redis-cli
+# 或者如果 PostgreSQL bin 在 PATH 中
+psql -h localhost -p 5432 -U postgres -d dnd_server
 ```
