@@ -392,8 +392,10 @@ func TestFVTTScene_ParseSampleFile(t *testing.T) {
 	wall := scene.Walls[0]
 	assert.Equal(t, "wall-001", wall.ID)
 	assert.Len(t, wall.C, 2)
-	assert.Equal(t, []int{140, 140}, wall.C[0])
-	assert.Equal(t, []int{1260, 140}, wall.C[1])
+	assert.InDelta(t, 140.0, wall.C[0][0], 0.001)
+	assert.InDelta(t, 140.0, wall.C[0][1], 0.001)
+	assert.InDelta(t, 1260.0, wall.C[1][0], 0.001)
+	assert.InDelta(t, 140.0, wall.C[1][1], 0.001)
 
 	// Verify token structure
 	token := scene.Tokens[0]

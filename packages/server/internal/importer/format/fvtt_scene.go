@@ -2,6 +2,8 @@
 // 规则参考: Foundry VTT v10 Scene Data Format
 package format
 
+import "fmt"
+
 // FVTTScene represents a Foundry VTT Scene
 // This is the main structure for Foundry VTT scene JSON files
 type FVTTScene struct {
@@ -50,7 +52,7 @@ type FVTTScene struct {
 	FogExploration bool    `json:"fogExploration"`
 	FogReset       int64   `json:"fogReset"`
 	GlobalLight    bool    `json:"globalLight"`
-	GlobalLightThreshold *int `json:"globalLightThreshold"`
+	GlobalLightThreshold *float64 `json:"globalLightThreshold"`
 	Darkness       float64 `json:"darkness"`
 
 	// Scene content
@@ -93,15 +95,73 @@ type FVTTInitialView struct {
 
 // FVTTDrawing represents a drawing on the scene
 type FVTTDrawing struct {
-	ID     string `json:"_id"`
-	Type   int    `json:"type"`
-	X      int    `json:"x"`
-	Y      int    `json:"y"`
-	Width  int    `json:"width"`
-	Height int    `json:"height"`
-	Points []int  `json:"points,omitempty"`
-	Fill   string `json:"fill,omitempty"`
-	Stroke string `json:"stroke,omitempty"`
+	ID     string      `json:"_id"`
+	Type   interface{} `json:"type"` // Can be string ("t", "ghost") or int
+	X      float64     `json:"x"`
+	Y      float64     `json:"y"`
+	Width  float64     `json:"width"`
+	Height float64     `json:"height"`
+	Points interface{} `json:"points,omitempty"` // Can be [][]int or []float64
+	Fill   string      `json:"fill,omitempty"`
+	Stroke string      `json:"stroke,omitempty"`
+}
+
+// GetTypeString returns the type as a string
+func (d *FVTTDrawing) GetTypeString() string {
+	switch v := d.Type.(type) {
+	case string:
+		return v
+	case int, int32, int64, float64:
+		return fmt.Sprintf("%v", v)
+	default:
+		return ""
+	}
+}
+
+// GetXInt returns the X coordinate as an integer
+func (d *FVTTDrawing) GetXInt() int {
+	return int(d.X)
+}
+
+// GetYInt returns the Y coordinate as an integer
+func (d *FVTTDrawing) GetYInt() int {
+	return int(d.Y)
+}
+
+// GetWidthInt returns the width as an integer
+func (d *FVTTDrawing) GetWidthInt() int {
+	return int(d.Width)
+}
+
+// GetHeightInt returns the height as an integer
+func (d *FVTTDrawing) GetHeightInt() int {
+	return int(d.Height)
+}
+
+// GetPointsAsPairs converts points to coordinate pairs
+func (d *FVTTDrawing) GetPointsAsPairs() [][]int {
+	switch v := d.Points.(type) {
+	case [][]int:
+		return v
+	case []interface{}:
+		result := make([][]int, 0, len(v))
+		for _, item := range v {
+			if pair, ok := item.([]int); ok {
+				result = append(result, pair)
+			} else if pair, ok := item.([]interface{}); ok {
+				intPair := make([]int, 0, len(pair))
+				for _, p := range pair {
+					if f, ok := p.(float64); ok {
+						intPair = append(intPair, int(f))
+					}
+				}
+				result = append(result, intPair)
+			}
+		}
+		return result
+	default:
+		return nil
+	}
 }
 
 // FVTTToken represents a token on the scene
@@ -140,16 +200,36 @@ type FVTTTokenBar struct {
 
 // FVTTLight represents a light source on the scene
 type FVTTLight struct {
-	ID     string `json:"_id"`
-	X      int    `json:"x"`
-	Y      int    `json:"y"`
-	Dim    int    `json:"dim"`    // Dim radius
-	Bright int    `json:"bright"` // Bright radius
-	Angle  int    `json:"angle"`
-	T      string `json:"t"`      // Type: "l"=local, "g"=global
-	Color  string `json:"color"`
+	ID     string  `json:"_id"`
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Dim    float64 `json:"dim"`    // Dim radius
+	Bright float64 `json:"bright"` // Bright radius
+	Angle  int     `json:"angle"`
+	T      string  `json:"t"`      // Type: "l"=local, "g"=global
+	Color  string  `json:"color"`
 	Alpha  float64 `json:"alpha"`
 	Animation *FVTTLightAnimation `json:"animation,omitempty"`
+}
+
+// GetXInt returns the X coordinate as an integer
+func (l *FVTTLight) GetXInt() int {
+	return int(l.X)
+}
+
+// GetYInt returns the Y coordinate as an integer
+func (l *FVTTLight) GetYInt() int {
+	return int(l.Y)
+}
+
+// GetBrightInt returns the bright radius as an integer
+func (l *FVTTLight) GetBrightInt() int {
+	return int(l.Bright)
+}
+
+// GetDimInt returns the dim radius as an integer
+func (l *FVTTLight) GetDimInt() int {
+	return int(l.Dim)
 }
 
 // FVTTLightAnimation represents light animation settings
@@ -173,13 +253,18 @@ type FVTTNote struct {
 
 // FVTTSound represents a sound on the scene
 type FVTTSound struct {
-	ID     string `json:"_id"`
-	X      int    `json:"x"`
+	ID     string  `json:"_id"`
+	X      int     `json:"x"`
 	Y      int    `json:"y"`
-	Path   string `json:"path"`
-	Repeat bool   `json:"repeat"`
-	Volume int    `json:"volume"`
-	Echo   bool   `json:"echo"`
+	Path   string  `json:"path"`
+	Repeat bool    `json:"repeat"`
+	Volume float64 `json:"volume"`
+	Echo   bool    `json:"echo"`
+}
+
+// GetVolumeInt returns the volume as an integer (0-100)
+func (s *FVTTSound) GetVolumeInt() int {
+	return int(s.Volume * 100)
 }
 
 // FVTTTemplate represents a measured template (AoE)
@@ -226,13 +311,13 @@ type FVTTRoof struct {
 // FVTTWall represents a wall on the scene
 // In Foundry VTT, walls are defined by two endpoints [x1, y1, x2, y2]
 type FVTTWall struct {
-	ID    string      `json:"_id"`
-	C     [][]int     `json:"c"` // [[x1, y1], [x2, y2]]
-	Move  int         `json:"move"` // Movement restriction (0=block, 1=difficult, 2=allow)
-	Sense int         `json:"sense"` // Sensing restriction (0=block, 1=limited, 2=allow)
-	Dir   int         `json:"dir"` // Direction (bitmask: 1=left, 2=both, 4=right)
-	Door  int         `json:"door"` // Door type (0=none, 1=door, 2=secret)
-	DS    int         `json:"ds"` // Door state (0=closed, 1=open, 2=locked)
+	ID    string        `json:"_id"`
+	C     [][]float64   `json:"c"` // [[x1, y1], [x2, y2]]
+	Move  int           `json:"move"` // Movement restriction (0=block, 1=difficult, 2=allow)
+	Sense int           `json:"sense"` // Sensing restriction (0=block, 1=limited, 2=allow)
+	Dir   int           `json:"dir"` // Direction (bitmask: 1=left, 2=both, 4=right)
+	Door  int           `json:"door"` // Door type (0=none, 1=door, 2=secret)
+	DS    int           `json:"ds"` // Door state (0=closed, 1=open, 2=locked)
 	Flags map[string]interface{} `json:"flags"`
 }
 

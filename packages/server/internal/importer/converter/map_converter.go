@@ -18,6 +18,22 @@ func NewMapConverter() *MapConverter {
 	return &MapConverter{}
 }
 
+// mapFVTTMoveSense converts FVTT move/sense values to model values
+// FVTT uses 0, 10, 20, 30... while model uses 0, 1, 2
+// 0 -> 0 (block)
+// 10 -> 1 (limit/difficult)
+// 20+ -> 2 (allow)
+func mapFVTTMoveSense(fvttValue int) int {
+	switch {
+	case fvttValue == 0:
+		return 0 // blocks
+	case fvttValue <= 10:
+		return 1 // difficult/limited
+	default:
+		return 2 // allows
+	}
+}
+
 // Format returns the format this converter handles
 func (c *MapConverter) Format() format.ImportFormat {
 	return format.FormatAuto // Handles multiple formats
@@ -55,6 +71,12 @@ func (c *MapConverter) Convert(parsedData interface{}, opts format.ImportOptions
 
 // ConvertFromUVTT converts UVTT data to a Map model
 func (c *MapConverter) ConvertFromUVTT(uvtt *format.UVTTData, opts format.ImportOptions) (*models.Map, error) {
+	// Generate default name if not provided (UVTT format has no name field)
+	name := opts.Name
+	if name == "" {
+		name = "Imported Map " + uuid.NewString()[:8]
+	}
+
 	// Calculate grid dimensions
 	gridWidth := uvtt.Resolution.MapSize.X
 	gridHeight := uvtt.Resolution.MapSize.Y
@@ -64,7 +86,7 @@ func (c *MapConverter) ConvertFromUVTT(uvtt *format.UVTTData, opts format.Import
 	}
 
 	// Create the map using the constructor
-	gameMap := models.NewBattleMap(opts.CampaignID, opts.Name, gridWidth, gridHeight, 5)
+	gameMap := models.NewBattleMap(opts.CampaignID, name, gridWidth, gridHeight, 5)
 
 	// Convert walls if requested
 	if opts.ImportWalls {
@@ -289,10 +311,10 @@ func (c *MapConverter) convertFVTTWalls(fvttWalls []format.FVTTWall, gridSize in
 		}
 
 		// Convert pixel coordinates to grid coordinates
-		x1 := w.C[0][0] / gridSize
-		y1 := w.C[0][1] / gridSize
-		x2 := w.C[1][0] / gridSize
-		y2 := w.C[1][1] / gridSize
+		x1 := int(w.C[0][0]) / gridSize
+		y1 := int(w.C[0][1]) / gridSize
+		x2 := int(w.C[1][0]) / gridSize
+		y2 := int(w.C[1][1]) / gridSize
 
 		// Skip zero-length walls
 		if x1 == x2 && y1 == y2 {
@@ -307,7 +329,7 @@ func (c *MapConverter) convertFVTTWalls(fvttWalls []format.FVTTWall, gridSize in
 			wallType = models.WallTypeDoor // Secret door
 		}
 
-		wall := models.NewWall(w.ID, wallType, x1, y1, x2, y2, w.Move, w.Sense)
+		wall := models.NewWall(w.ID, wallType, x1, y1, x2, y2, mapFVTTMoveSense(w.Move), mapFVTTMoveSense(w.Sense))
 
 		if wall.ID == "" {
 			wall.ID = uuid.NewString()
@@ -361,13 +383,22 @@ func (c *MapConverter) convertFVTTTokens(fvttTokens []format.FVTTToken, gridSize
 			tokenID = uuid.NewString()
 		}
 
+		// Set CharacterID from ActorID, fallback to token ID if not available
+		characterID := t.ActorID
+		if characterID == "" {
+			// FVTT Token has no associated Actor, use token ID as temporary identifier
+			characterID = tokenID
+		}
+
 		token := models.Token{
-			ID:       tokenID,
-			Name:     t.Name,
-			Position: models.Position{X: gridX, Y: gridY},
-			Size:     size,
-			Hidden:   t.Hidden,
-			Locked:   t.Locked,
+			ID:          tokenID,
+			CharacterID: characterID,
+			Name:        t.Name,
+			Position:    models.Position{X: gridX, Y: gridY},
+			Size:        size,
+			Hidden:      t.Hidden,
+			Locked:      t.Locked,
+			Scale:       1.0, // Default scale
 		}
 
 		tokens = append(tokens, token)
