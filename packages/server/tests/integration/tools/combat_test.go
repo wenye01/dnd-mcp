@@ -16,59 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Mock stores for combat testing
-
-type MockCombatStore struct {
-	combats map[string]*models.Combat
-}
-
-func NewMockCombatStore() *MockCombatStore {
-	return &MockCombatStore{
-		combats: make(map[string]*models.Combat),
-	}
-}
-
-func (m *MockCombatStore) Create(ctx context.Context, combat *models.Combat) error {
-	m.combats[combat.ID] = combat
-	return nil
-}
-
-func (m *MockCombatStore) Get(ctx context.Context, id string) (*models.Combat, error) {
-	c, ok := m.combats[id]
-	if !ok {
-		return nil, service.NewServiceError(service.ErrCodeNotFound, "combat not found")
-	}
-	return c, nil
-}
-
-func (m *MockCombatStore) GetByCampaign(ctx context.Context, campaignID string) ([]*models.Combat, error) {
-	var result []*models.Combat
-	for _, c := range m.combats {
-		if c.CampaignID == campaignID {
-			result = append(result, c)
-		}
-	}
-	return result, nil
-}
-
-func (m *MockCombatStore) GetActive(ctx context.Context, campaignID string) (*models.Combat, error) {
-	for _, c := range m.combats {
-		if c.CampaignID == campaignID && c.IsActive() {
-			return c, nil
-		}
-	}
-	return nil, service.NewServiceError(service.ErrCodeNotFound, "no active combat")
-}
-
-func (m *MockCombatStore) Update(ctx context.Context, combat *models.Combat) error {
-	m.combats[combat.ID] = combat
-	return nil
-}
-
-func (m *MockCombatStore) Delete(ctx context.Context, id string) error {
-	delete(m.combats, id)
-	return nil
-}
+// Mock stores for combat testing (specific to combat tests)
 
 type MockCharacterStoreForCombat struct {
 	characters map[string]*models.Character
@@ -154,10 +102,11 @@ func setupCombatTools() (*tools.CombatTools, *mcp.Registry, *MockCombatStore, *M
 	combatStore := NewMockCombatStore()
 	characterStore := NewMockCharacterStoreForCombat()
 	campaignStore := NewMockCampaignStoreForCombat()
+	gameStateStore := NewMockGameStateStore()
 
 	roller := dice.NewRollerWithSource(dice.NewSeededRandomSource(42))
 	diceService := service.NewDiceServiceWithRoller(characterStore, roller)
-	combatService := service.NewCombatServiceWithRoller(combatStore, characterStore, campaignStore, diceService, roller)
+	combatService := service.NewCombatServiceWithRoller(combatStore, characterStore, campaignStore, gameStateStore, diceService, roller)
 	combatTools := tools.NewCombatTools(combatService)
 	registry := mcp.NewRegistry()
 

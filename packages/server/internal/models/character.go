@@ -66,6 +66,65 @@ type HP struct {
 	Temp    int `json:"temp"`    // 临时HP
 }
 
+// HitDice 生命骰
+// 规则参考: PHB 第8章 - Resting
+type HitDice struct {
+	Total     int `json:"total"`     // 总生命骰数量（通常等于角色等级）
+	Current   int `json:"current"`   // 当前剩余生命骰
+	DieSize   int `json:"die_size"`  // 生命骰大小（d6, d8, d10, d12）
+}
+
+// NewHitDice 创建生命骰
+// 规则参考: PHB 第8章 - Hit Dice
+func NewHitDice(level int, dieSize int) *HitDice {
+	return &HitDice{
+		Total:   level,
+		Current: level,
+		DieSize: dieSize,
+	}
+}
+
+// Validate 验证生命骰
+func (h *HitDice) Validate() error {
+	if h.Total < 1 {
+		return NewValidationError("hit_dice.total", "must be at least 1")
+	}
+	if h.Current < 0 || h.Current > h.Total {
+		return NewValidationError("hit_dice.current", "must be between 0 and total")
+	}
+	if h.DieSize < 6 || h.DieSize > 12 {
+		return NewValidationError("hit_dice.die_size", "must be 6, 8, 10, or 12")
+	}
+	return nil
+}
+
+// Spend 消耗生命骰（返回消耗数量，如果数量不足则返回错误）
+func (h *HitDice) Spend(amount int) (int, error) {
+	if h.Current < amount {
+		actual := h.Current
+		h.Current = 0
+		return actual, NewValidationError("hit_dice", "not enough hit dice remaining")
+	}
+	h.Current -= amount
+	return amount, nil
+}
+
+// Restore 恢复生命骰
+// 规则参考: PHB 第8章 - Long Rest
+// 长休恢复至少一半生命骰（向上取整）
+func (h *HitDice) Restore() {
+	restoreAmount := (h.Total + 1) / 2 // 向上取整
+	h.Current += restoreAmount
+	if h.Current > h.Total {
+		h.Current = h.Total
+	}
+}
+
+// Available 返回可用生命骰数量
+func (h *HitDice) Available() int {
+	return h.Current
+}
+
 // NewHP 创建生命值
 func NewHP(max int) *HP {
 	return &HP{
@@ -236,6 +295,7 @@ type Character struct {
 
 	// 战斗属性
 	HP         *HP            `json:"hp"`         // 生命值
+	HitDice    *HitDice       `json:"hit_dice,omitempty"`    // 生命骰（用于短休恢复）
 	AC         int            `json:"ac"`         // 护甲等级
 	Speed      int            `json:"speed"`      // 移动速度（英尺）- 向后兼容
 	Initiative int            `json:"initiative"` // 先攻加值
@@ -1256,4 +1316,157 @@ func (c *Character) IsImported() bool {
 func (c *Character) SetImportMeta(meta *ImportMeta) {
 	c.ImportMeta = meta
 	c.UpdatedAt = time.Now()
+}
+
+// ============ 休息相关方法 ============
+
+// GetHitDice 获取生命骰（如果不存在则创建）
+func (c *Character) GetHitDice() *HitDice {
+	if c.HitDice == nil {
+		// 根据职业和等级创建默认生命骰
+		dieSize := c.getClassHitDie()
+		c.HitDice = NewHitDice(c.Level, dieSize)
+	}
+	return c.HitDice
+}
+
+// getClassHitDie 根据职业获取生命骰大小
+// 规则参考: PHB 第3章 - Classes
+func (c *Character) getClassHitDie() int {
+	hitDiceByClass := map[string]int{
+		"barbarian":  12,
+		"bard":       8,
+		"cleric":    8,
+		"druid":      8,
+		"fighter":   10,
+		"monk":       8,
+		"paladin":  10,
+		"ranger":    10,
+		"rogue":     8,
+		"sorcerer":  6,
+		"warlock":   8,
+		"wizard":    6,
+	}
+
+	if dieSize, ok := hitDiceByClass[c.Class]; ok {
+		return dieSize
+	}
+	return 8 // 默认 d8
+}
+
+// ShortRestResult 短休结果
+type ShortRestResult struct {
+	HitDiceSpent  int   `json:"hit_dice_spent"`  // 消耗的生命骰数量
+	HPHealed      int   `json:"hp_healed"`        // 恢复的HP
+	HitDiceRemaining int `json:"hit_dice_remaining"` // 剩余生命骰
+}
+
+// ShortRest 短休
+// 规则参考: PHB 第8章 - Short Rest
+// 短休持续至少1小时，角色可以消耗生命骰恢复HP
+func (c *Character) ShortRest(hitDiceToSpend int, conMod int) (*ShortRestResult, error) {
+	if hitDiceToSpend <= 0 {
+		return nil, NewValidationError("hit_dice_to_spend", "must be positive")
+	}
+
+	hitDice := c.GetHitDice()
+
+	// 检查是否有足够的生命骰
+	if hitDice.Available() == 0 {
+		return nil, NewValidationError("hit_dice", "no hit dice available")
+	}
+
+	// 限制消耗数量
+	actualSpend := hitDiceToSpend
+	if actualSpend > hitDice.Available() {
+		actualSpend = hitDice.Available()
+	}
+
+	// 消耗生命骰
+	spent, err := hitDice.Spend(actualSpend)
+	if err != nil {
+		return nil, err
+	}
+
+	// 恢复HP：每颗生命骰投骰 + 体质修正（最少1点）
+	totalHealed := 0
+	dieSize := hitDice.DieSize
+	minRoll := 1 + conMod
+	if minRoll < 1 {
+		minRoll = 1
+	}
+
+	// 计算平均恢复值（骰子平均值的一半 + 体质修正）
+	for i := 0; i < spent; i++ {
+		avgRoll := (dieSize / 2) + 1 + conMod
+		if avgRoll < 1 {
+			avgRoll = 1
+		}
+		totalHealed += avgRoll
+	}
+
+	// 应用治疗
+	if c.HP == nil {
+		c.HP = NewHP(1)
+	}
+	actualHealed := c.HP.Heal(totalHealed)
+
+	c.UpdatedAt = time.Now()
+
+	return &ShortRestResult{
+		HitDiceSpent:      spent,
+		HPHealed:          actualHealed,
+		HitDiceRemaining:  hitDice.Available(),
+	}, nil
+}
+
+// LongRestResult 长休结果
+type LongRestResult struct {
+	HPHealed           int    `json:"hp_healed"`            // 恢复的HP
+	SpellSlotsRestored bool   `json:"spell_slots_restored"` // 是否恢复了法术位
+	HitDiceRestored    int    `json:"hit_dice_restored"`    // 恢复的生命骰数量
+	HitDiceRemaining   int    `json:"hit_dice_remaining"`   // 剩余生命骰
+	FeaturesRestored   []string `json:"features_restored"`  // 恢复的特性名称
+}
+
+// LongRest 长休
+// 规则参考: PHB 第8章 - Long Rest
+// 长休持续至少8小时，角色恢复全部HP、一半生命骰、所有法术位
+func (c *Character) LongRest(conMod int) *LongRestResult {
+	result := &LongRestResult{}
+
+	// 1. 恢复全部HP
+	if c.HP == nil {
+		c.HP = NewHP(1)
+	}
+	previousHP := c.HP.Current
+	result.HPHealed = c.HP.Heal(c.HP.Max - previousHP)
+
+	// 2. 恢复一半生命骰
+	hitDice := c.GetHitDice()
+	previousHitDice := hitDice.Available()
+	hitDice.Restore()
+	result.HitDiceRestored = hitDice.Available() - previousHitDice
+	result.HitDiceRemaining = hitDice.Available()
+
+	// 3. 恢复所有法术位
+	if c.Spellbook != nil {
+		c.Spellbook.RestoreAllSlots()
+		result.SpellSlotsRestored = true
+	}
+
+	// 4. 恢复特性（标记为长休恢复的特性）
+	restoredFeatures := make([]string, 0)
+	if c.Features != nil {
+		for _, feature := range c.Features {
+			if feature.Restore("long_rest") {
+				restoredFeatures = append(restoredFeatures, feature.Name)
+			}
+		}
+	}
+	result.FeaturesRestored = restoredFeatures
+
+	c.UpdatedAt = time.Now()
+
+	return result
 }

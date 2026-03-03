@@ -40,6 +40,7 @@ func TestCombatService_EndTurn(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		NewMockGameStateStore(),
 		diceSvc,
 		roller,
 	)
@@ -82,6 +83,7 @@ func TestCombatService_EndTurn_NewRound(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		NewMockGameStateStore(),
 		diceSvc,
 		roller,
 	)
@@ -139,6 +141,7 @@ func TestCombatService_EndTurn_ConditionExpires(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		NewMockGameStateStore(),
 		diceSvc,
 		roller,
 	)
@@ -184,6 +187,7 @@ func TestCombatService_EndTurn_NotActiveCombat(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		NewMockGameStateStore(),
 		diceSvc,
 		roller,
 	)
@@ -228,6 +232,7 @@ func TestCombatService_EndTurn_MultipleRounds(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		NewMockGameStateStore(),
 		diceSvc,
 		roller,
 	)
@@ -277,6 +282,7 @@ func TestCombatService_EndTurn_EmptyCombat(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		NewMockGameStateStore(),
 		diceSvc,
 		roller,
 	)
@@ -302,6 +308,7 @@ func TestCombatService_EndTurn_MissingCombatID(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		NewMockGameStateStore(),
 		diceSvc,
 		roller,
 	)
@@ -328,6 +335,7 @@ func TestCombatService_EndTurn_CombatNotFound(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		NewMockGameStateStore(),
 		diceSvc,
 		roller,
 	)
@@ -378,6 +386,7 @@ func TestCombatService_EndTurn_PermanentCondition(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		NewMockGameStateStore(),
 		diceSvc,
 		roller,
 	)
@@ -420,6 +429,7 @@ func TestCombatService_EndTurn_LogEntry(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		NewMockGameStateStore(),
 		diceSvc,
 		roller,
 	)

@@ -3,6 +3,7 @@ package tools
 
 import (
 	"context"
+	"time"
 
 	"github.com/dnd-mcp/server/internal/models"
 	"github.com/dnd-mcp/server/internal/service"
@@ -252,4 +253,98 @@ func (m *MockCharacterStore) Delete(ctx context.Context, id string) error {
 
 func (m *MockCharacterStore) Count(ctx context.Context, filter *store.CharacterFilter) (int64, error) {
 	return int64(len(m.characters)), nil
+}
+
+// MockCombatStore for testing
+type MockCombatStore struct {
+	combats map[string]*models.Combat
+}
+
+func NewMockCombatStore() *MockCombatStore {
+	return &MockCombatStore{
+		combats: make(map[string]*models.Combat),
+	}
+}
+
+func (m *MockCombatStore) Create(ctx context.Context, combat *models.Combat) error {
+	m.combats[combat.ID] = combat
+	return nil
+}
+
+func (m *MockCombatStore) Get(ctx context.Context, id string) (*models.Combat, error) {
+	c, ok := m.combats[id]
+	if !ok {
+		return nil, service.NewServiceError(service.ErrCodeNotFound, "combat not found")
+	}
+	return c, nil
+}
+
+func (m *MockCombatStore) GetByCampaign(ctx context.Context, campaignID string) ([]*models.Combat, error) {
+	var result []*models.Combat
+	for _, c := range m.combats {
+		if c.CampaignID == campaignID {
+			result = append(result, c)
+		}
+	}
+	return result, nil
+}
+
+func (m *MockCombatStore) GetActive(ctx context.Context, campaignID string) (*models.Combat, error) {
+	for _, c := range m.combats {
+		if c.CampaignID == campaignID && c.IsActive() {
+			return c, nil
+		}
+	}
+	return nil, service.NewServiceError(service.ErrCodeNotFound, "no active combat")
+}
+
+func (m *MockCombatStore) Update(ctx context.Context, combat *models.Combat) error {
+	m.combats[combat.ID] = combat
+	return nil
+}
+
+func (m *MockCombatStore) Delete(ctx context.Context, id string) error {
+	delete(m.combats, id)
+	return nil
+}
+
+// MockMessageStore for testing
+type MockMessageStore struct {
+	messages map[string][]*models.Message
+}
+
+func NewMockMessageStore() *MockMessageStore {
+	return &MockMessageStore{
+		messages: make(map[string][]*models.Message),
+	}
+}
+
+func (m *MockMessageStore) Create(ctx context.Context, message *models.Message) error {
+	if message.CreatedAt.IsZero() {
+		message.CreatedAt = time.Now()
+	}
+	if _, ok := m.messages[message.CampaignID]; !ok {
+		m.messages[message.CampaignID] = []*models.Message{}
+	}
+	m.messages[message.CampaignID] = append(m.messages[message.CampaignID], message)
+	return nil
+}
+
+func (m *MockMessageStore) ListByCampaign(ctx context.Context, campaignID string, limit int) ([]*models.Message, error) {
+	msgs, ok := m.messages[campaignID]
+	if !ok {
+		return []*models.Message{}, nil
+	}
+	if limit > 0 && len(msgs) > limit {
+		return msgs[len(msgs)-limit:], nil
+	}
+	return msgs, nil
+}
+
+func (m *MockMessageStore) CountByCampaign(ctx context.Context, campaignID string) (int, error) {
+	msgs, ok := m.messages[campaignID]
+	if !ok {
+		return 0, nil
+	}
+	return len(msgs), nil
 }

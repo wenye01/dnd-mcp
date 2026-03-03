@@ -25,14 +25,21 @@ type CampaignStoreForCombat interface {
 	Get(ctx context.Context, id string) (*models.Campaign, error)
 }
 
+// GameStateStoreForCombat defines the game state store interface needed by combat service
+type GameStateStoreForCombat interface {
+	Get(ctx context.Context, campaignID string) (*models.GameState, error)
+	Update(ctx context.Context, gameState *models.GameState) error
+}
+
 // CombatService provides combat business logic
 // 规则参考: PHB 第9章 Combat
 type CombatService struct {
-	combatStore    CombatStore
-	characterStore CharacterStore
-	campaignStore  CampaignStoreForCombat
-	diceService    *DiceService
-	roller         *dice.Roller
+	combatStore     CombatStore
+	characterStore  CharacterStore
+	campaignStore   CampaignStoreForCombat
+	gameStateStore  GameStateStoreForCombat
+	diceService     *DiceService
+	roller          *dice.Roller
 }
 
 // NewCombatService creates a new combat service
@@ -40,14 +47,16 @@ func NewCombatService(
 	combatStore CombatStore,
 	characterStore CharacterStore,
 	campaignStore CampaignStoreForCombat,
+	gameStateStore GameStateStoreForCombat,
 	diceService *DiceService,
 ) *CombatService {
 	return &CombatService{
-		combatStore:    combatStore,
-		characterStore: characterStore,
-		campaignStore:  campaignStore,
-		diceService:    diceService,
-		roller:         dice.NewRoller(),
+		combatStore:     combatStore,
+		characterStore:  characterStore,
+		campaignStore:   campaignStore,
+		gameStateStore:  gameStateStore,
+		diceService:     diceService,
+		roller:          dice.NewRoller(),
 	}
 }
 
@@ -56,15 +65,17 @@ func NewCombatServiceWithRoller(
 	combatStore CombatStore,
 	characterStore CharacterStore,
 	campaignStore CampaignStoreForCombat,
+	gameStateStore GameStateStoreForCombat,
 	diceService *DiceService,
 	roller *dice.Roller,
 ) *CombatService {
 	return &CombatService{
-		combatStore:    combatStore,
-		characterStore: characterStore,
-		campaignStore:  campaignStore,
-		diceService:    diceService,
-		roller:         roller,
+		combatStore:     combatStore,
+		characterStore:  characterStore,
+		campaignStore:   campaignStore,
+		gameStateStore:  gameStateStore,
+		diceService:     diceService,
+		roller:          roller,
 	}
 }
 
@@ -132,7 +143,21 @@ func (s *CombatService) StartCombat(ctx context.Context, req *StartCombatRequest
 		return nil, fmt.Errorf("failed to create combat: %w", err)
 	}
 
-	// 8. 记录战斗日志
+	// 8. 更新 GameState.ActiveCombatID
+	if s.gameStateStore != nil {
+		gameState, err := s.gameStateStore.Get(ctx, req.CampaignID)
+		if err != nil {
+			// 如果 GameState 不存在，记录警告但不中断流程
+			// 这是向后兼容的处理：GameState 可能在旧战役中不存在
+		} else {
+			gameState.SetCombat(newCombat.ID)
+			if err := s.gameStateStore.Update(ctx, gameState); err != nil {
+				return nil, fmt.Errorf("failed to update game state: %w", err)
+			}
+		}
+	}
+
+	// 9. 记录战斗日志
 	newCombat.AddLogEntry("", "combat_start", "", fmt.Sprintf("Combat started with %d participants", len(participants)))
 
 	return newCombat, nil
@@ -524,6 +549,19 @@ func (s *CombatService) EndCombat(ctx context.Context, combatID string) (*models
 	combat.End()
 	combat.AddLogEntry("", "combat_end", "", "Combat ended")
 
+	// 更新 GameState：清除 ActiveCombatID
+	if s.gameStateStore != nil {
+		gameState, err := s.gameStateStore.Get(ctx, combat.CampaignID)
+		if err != nil {
+			// 如果 GameState 不存在，记录警告但不中断流程
+		} else {
+			gameState.ClearCombat()
+			if err := s.gameStateStore.Update(ctx, gameState); err != nil {
+				return nil, fmt.Errorf("failed to update game state: %w", err)
+			}
+		}
+	}
+
 	// 保存战斗
 	if err := s.combatStore.Update(ctx, combat); err != nil {
 		return nil, fmt.Errorf("failed to update combat: %w", err)
@@ -638,6 +676,19 @@ func (s *CombatService) EndCombatWithSummary(ctx context.Context, combatID strin
 	// 结束战斗
 	combat.End()
 	combat.AddLogEntry("", "combat_end", "", "Combat ended")
+
+	// 更新 GameState：清除 ActiveCombatID
+	if s.gameStateStore != nil {
+		gameState, err := s.gameStateStore.Get(ctx, combat.CampaignID)
+		if err != nil {
+			// 如果 GameState 不存在，记录警告但不中断流程
+		} else {
+			gameState.ClearCombat()
+			if err := s.gameStateStore.Update(ctx, gameState); err != nil {
+				return nil, fmt.Errorf("failed to update game state: %w", err)
+			}
+		}
+	}
 
 	// 生成战斗统计
 	summary := s.generateCombatSummary(ctx, combat)

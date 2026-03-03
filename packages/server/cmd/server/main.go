@@ -94,13 +94,17 @@ func main() {
 	characterStore := postgres.NewCharacterStore(dbClient)
 	combatStore := postgres.NewCombatStore(dbClient)
 	mapStore := postgres.NewMapStore(dbClient)
+	messageStore := postgres.NewMessageStore(dbClient) // M7: Context Management
 
 	// Step 6: Initialize services
 	campaignService := service.NewCampaignService(campaignStore, gameStateStore)
 	characterService := service.NewCharacterService(characterStore)
 	diceService := service.NewDiceService(characterStore)
-	combatService := service.NewCombatService(combatStore, characterStore, campaignStore, diceService)
+	combatService := service.NewCombatService(combatStore, characterStore, campaignStore, gameStateStore, diceService)
 	mapService := service.NewMapServiceWithCharacters(mapStore, campaignStore, gameStateStore, characterStore)
+	contextService := service.NewContextService(messageStore, characterStore, gameStateStore, combatStore, mapStore) // M7: Context Management
+	restService := service.NewRestService(characterStore, gameStateStore)                                           // M7.5: Rest System
+	conditionService := service.NewConditionService(characterStore)                                                 // M7.5: Condition System
 
 	// Step 6.5: Initialize import service
 	importService := importer.NewImportService(mapStore)
@@ -136,6 +140,21 @@ func main() {
 	importTools := tools.NewImportTools(importService)
 	importTools.Register(server.Registry())
 	fmt.Println("Import tools registered: import_map, import_map_from_module")
+
+	// Step 7.6: Register Context Tools (M7)
+	contextTools := tools.NewContextTools(contextService)
+	contextTools.Register(server.Registry())
+	fmt.Println("Context tools registered: get_context, get_raw_context, save_message")
+
+	// Step 7.7: Register Rest Tools (M7.5)
+	restTools := tools.NewRestTools(restService)
+	restTools.Register(server.Registry())
+	fmt.Println("Rest tools registered: take_short_rest, take_long_rest, party_long_rest")
+
+	// Step 7.8: Register Condition Tools (M7.5)
+	conditionTools := tools.NewConditionTools(conditionService)
+	conditionTools.Register(server.Registry())
+	fmt.Println("Condition tools registered: apply_condition, remove_condition, get_conditions, has_condition")
 
 	// Step 8: Start HTTP server in goroutine
 	go func() {

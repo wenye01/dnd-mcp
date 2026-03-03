@@ -244,6 +244,7 @@ func TestCombatService_StartCombat(t *testing.T) {
 			mockCombatStore := NewMockCombatStore()
 			mockCampaignStore := new(MockCampaignStoreForCombat)
 			mockCharacterStore := new(MockCharacterStoreForCombat)
+			mockGameStateStore := NewMockGameStateStore()
 			mockDiceStore := new(MockCharacterStoreForDice)
 			mockRandom := &MockRandomSourceForCombat{values: []int{9, 14}} // rolls 10 and 15
 			roller := dice.NewRollerWithSource(mockRandom)
@@ -255,6 +256,7 @@ func TestCombatService_StartCombat(t *testing.T) {
 				mockCombatStore,
 				mockCharacterStore,
 				mockCampaignStore,
+				mockGameStateStore,
 				diceSvc,
 				roller,
 			)
@@ -283,6 +285,7 @@ func TestCombatService_StartCombat_AlreadyActive(t *testing.T) {
 	mockCombatStore := NewMockCombatStore()
 	mockCampaignStore := new(MockCampaignStoreForCombat)
 	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
 	mockDiceStore := new(MockCharacterStoreForDice)
 	mockRandom := &MockRandomSourceForCombat{values: []int{9}}
 	roller := dice.NewRollerWithSource(mockRandom)
@@ -297,6 +300,7 @@ func TestCombatService_StartCombat_AlreadyActive(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		mockGameStateStore,
 		diceSvc,
 		roller,
 	)
@@ -352,6 +356,7 @@ func TestCombatService_GetCombatState(t *testing.T) {
 			mockCombatStore := NewMockCombatStore()
 			mockCampaignStore := new(MockCampaignStoreForCombat)
 			mockCharacterStore := new(MockCharacterStoreForCombat)
+			mockGameStateStore := NewMockGameStateStore()
 			mockDiceStore := new(MockCharacterStoreForDice)
 			roller := dice.NewRoller()
 			diceSvc := service.NewDiceServiceWithRoller(mockDiceStore, roller)
@@ -362,6 +367,7 @@ func TestCombatService_GetCombatState(t *testing.T) {
 				mockCombatStore,
 				mockCharacterStore,
 				mockCampaignStore,
+				mockGameStateStore,
 				diceSvc,
 				roller,
 			)
@@ -387,6 +393,7 @@ func TestCombatService_GetActiveCombat(t *testing.T) {
 	mockCombatStore := NewMockCombatStore()
 	mockCampaignStore := new(MockCampaignStoreForCombat)
 	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
 	mockDiceStore := new(MockCharacterStoreForDice)
 	roller := dice.NewRoller()
 	diceSvc := service.NewDiceServiceWithRoller(mockDiceStore, roller)
@@ -398,6 +405,7 @@ func TestCombatService_GetActiveCombat(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		mockGameStateStore,
 		diceSvc,
 		roller,
 	)
@@ -414,6 +422,7 @@ func TestCombatService_Attack_Hit(t *testing.T) {
 	mockCombatStore := NewMockCombatStore()
 	mockCampaignStore := new(MockCampaignStoreForCombat)
 	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
 	mockDiceStore := new(MockCharacterStoreForDice)
 	// Roll 10 for attack (10 + 5 = 15 >= AC 15, hit)
 	// Roll 4 for damage (4 + 3 = 7 damage)
@@ -445,6 +454,7 @@ func TestCombatService_Attack_Hit(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		mockGameStateStore,
 		diceSvc,
 		roller,
 	)
@@ -467,6 +477,7 @@ func TestCombatService_Attack_Miss(t *testing.T) {
 	mockCombatStore := NewMockCombatStore()
 	mockCampaignStore := new(MockCampaignStoreForCombat)
 	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
 	mockDiceStore := new(MockCharacterStoreForDice)
 	// Roll 4 for attack (4 + 5 = 9 < AC 15, miss)
 	mockRandom := &MockRandomSourceForCombat{values: []int{3}}
@@ -495,6 +506,7 @@ func TestCombatService_Attack_Miss(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		mockGameStateStore,
 		diceSvc,
 		roller,
 	)
@@ -517,6 +529,7 @@ func TestCombatService_Attack_Crit(t *testing.T) {
 	mockCombatStore := NewMockCombatStore()
 	mockCampaignStore := new(MockCampaignStoreForCombat)
 	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
 	mockDiceStore := new(MockCharacterStoreForDice)
 	// Roll 19 for attack (natural 20, auto crit)
 	// Roll 3, 5 for damage (crit: 2d8 = 8 + 3 = 11 damage)
@@ -547,6 +560,7 @@ func TestCombatService_Attack_Crit(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		mockGameStateStore,
 		diceSvc,
 		roller,
 	)
@@ -569,6 +583,7 @@ func TestCombatService_Attack_Fumble(t *testing.T) {
 	mockCombatStore := NewMockCombatStore()
 	mockCampaignStore := new(MockCampaignStoreForCombat)
 	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
 	mockDiceStore := new(MockCharacterStoreForDice)
 	// Roll 0 for attack (natural 1, auto miss)
 	mockRandom := &MockRandomSourceForCombat{values: []int{0}}
@@ -597,6 +612,7 @@ func TestCombatService_Attack_Fumble(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		mockGameStateStore,
 		diceSvc,
 		roller,
 	)
@@ -619,6 +635,7 @@ func TestCombatService_CastSpell(t *testing.T) {
 	mockCombatStore := NewMockCombatStore()
 	mockCampaignStore := new(MockCampaignStoreForCombat)
 	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
 	mockDiceStore := new(MockCharacterStoreForDice)
 	// Roll 3, 4 for damage (2d6 = 7 damage)
 	mockRandom := &MockRandomSourceForCombat{values: []int{2, 3}}
@@ -646,6 +663,7 @@ func TestCombatService_CastSpell(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		mockGameStateStore,
 		diceSvc,
 		roller,
 	)
@@ -675,6 +693,7 @@ func TestCombatService_CastSpell_Healing(t *testing.T) {
 	mockCombatStore := NewMockCombatStore()
 	mockCampaignStore := new(MockCampaignStoreForCombat)
 	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
 	mockDiceStore := new(MockCharacterStoreForDice)
 	// Roll 4 for healing (1d4+3 = 7 healing)
 	mockRandom := &MockRandomSourceForCombat{values: []int{3}}
@@ -703,6 +722,7 @@ func TestCombatService_CastSpell_Healing(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		mockGameStateStore,
 		diceSvc,
 		roller,
 	)
@@ -730,6 +750,7 @@ func TestCombatService_AdvanceTurn(t *testing.T) {
 	mockCombatStore := NewMockCombatStore()
 	mockCampaignStore := new(MockCampaignStoreForCombat)
 	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
 	mockDiceStore := new(MockCharacterStoreForDice)
 	roller := dice.NewRoller()
 	diceSvc := service.NewDiceServiceWithRoller(mockDiceStore, roller)
@@ -751,6 +772,7 @@ func TestCombatService_AdvanceTurn(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		mockGameStateStore,
 		diceSvc,
 		roller,
 	)
@@ -768,6 +790,7 @@ func TestCombatService_AdvanceTurn_NewRound(t *testing.T) {
 	mockCombatStore := NewMockCombatStore()
 	mockCampaignStore := new(MockCampaignStoreForCombat)
 	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
 	mockDiceStore := new(MockCharacterStoreForDice)
 	roller := dice.NewRoller()
 	diceSvc := service.NewDiceServiceWithRoller(mockDiceStore, roller)
@@ -790,6 +813,7 @@ func TestCombatService_AdvanceTurn_NewRound(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		mockGameStateStore,
 		diceSvc,
 		roller,
 	)
@@ -808,6 +832,7 @@ func TestCombatService_EndCombat(t *testing.T) {
 	mockCombatStore := NewMockCombatStore()
 	mockCampaignStore := new(MockCampaignStoreForCombat)
 	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
 	mockDiceStore := new(MockCharacterStoreForDice)
 	roller := dice.NewRoller()
 	diceSvc := service.NewDiceServiceWithRoller(mockDiceStore, roller)
@@ -822,6 +847,7 @@ func TestCombatService_EndCombat(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		mockGameStateStore,
 		diceSvc,
 		roller,
 	)
@@ -839,6 +865,7 @@ func TestCombatService_EndCombatWithSummary(t *testing.T) {
 	mockCombatStore := NewMockCombatStore()
 	mockCampaignStore := new(MockCampaignStoreForCombat)
 	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
 	mockDiceStore := new(MockCharacterStoreForDice)
 	roller := dice.NewRoller()
 	diceSvc := service.NewDiceServiceWithRoller(mockDiceStore, roller)
@@ -867,6 +894,7 @@ func TestCombatService_EndCombatWithSummary(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		mockGameStateStore,
 		diceSvc,
 		roller,
 	)
@@ -898,6 +926,7 @@ func TestCombatService_EndCombatWithSummary_EmptyLog(t *testing.T) {
 	mockCombatStore := NewMockCombatStore()
 	mockCampaignStore := new(MockCampaignStoreForCombat)
 	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
 	mockDiceStore := new(MockCharacterStoreForDice)
 	roller := dice.NewRoller()
 	diceSvc := service.NewDiceServiceWithRoller(mockDiceStore, roller)
@@ -915,6 +944,7 @@ func TestCombatService_EndCombatWithSummary_EmptyLog(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		mockGameStateStore,
 		diceSvc,
 		roller,
 	)
@@ -934,6 +964,7 @@ func TestCombatService_EndCombatWithSummary_InvalidID(t *testing.T) {
 	mockCombatStore := NewMockCombatStore()
 	mockCampaignStore := new(MockCampaignStoreForCombat)
 	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
 	mockDiceStore := new(MockCharacterStoreForDice)
 	roller := dice.NewRoller()
 	diceSvc := service.NewDiceServiceWithRoller(mockDiceStore, roller)
@@ -942,6 +973,7 @@ func TestCombatService_EndCombatWithSummary_InvalidID(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		mockGameStateStore,
 		diceSvc,
 		roller,
 	)
@@ -957,6 +989,7 @@ func TestCombatService_EndCombatWithSummary_AlreadyEnded(t *testing.T) {
 	mockCombatStore := NewMockCombatStore()
 	mockCampaignStore := new(MockCampaignStoreForCombat)
 	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
 	mockDiceStore := new(MockCharacterStoreForDice)
 	roller := dice.NewRoller()
 	diceSvc := service.NewDiceServiceWithRoller(mockDiceStore, roller)
@@ -971,6 +1004,7 @@ func TestCombatService_EndCombatWithSummary_AlreadyEnded(t *testing.T) {
 		mockCombatStore,
 		mockCharacterStore,
 		mockCampaignStore,
+		mockGameStateStore,
 		diceSvc,
 		roller,
 	)
@@ -1021,4 +1055,243 @@ func TestParseHealingFromResult(t *testing.T) {
 			assert.Equal(t, tt.expected, healing)
 		})
 	}
+}
+
+// TestCombatService_StartCombat_UpdatesGameState tests that StartCombat updates GameState.ActiveCombatID
+func TestCombatService_StartCombat_UpdatesGameState(t *testing.T) {
+	mockCombatStore := NewMockCombatStore()
+	mockCampaignStore := new(MockCampaignStoreForCombat)
+	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
+	mockDiceStore := new(MockCharacterStoreForDice)
+	mockRandom := &MockRandomSourceForCombat{values: []int{9, 14}}
+	roller := dice.NewRollerWithSource(mockRandom)
+	diceSvc := service.NewDiceServiceWithRoller(mockDiceStore, roller)
+
+	// Setup initial GameState
+	initialGameState := models.NewGameState("campaign1")
+	mockGameStateStore.Create(context.Background(), initialGameState)
+
+	// Setup mocks
+	mockCampaignStore.On("Get", mock.Anything, "campaign1").Return(&models.Campaign{ID: "campaign1"}, nil)
+	mockCombatStore.On("GetActive", mock.Anything, "campaign1").Return(nil, errors.New("not found"))
+	mockCharacterStore.On("Get", mock.Anything, "char1").Return(createTestCharacter("char1", "Fighter", "campaign1", 45, 16), nil)
+	mockCharacterStore.On("Get", mock.Anything, "char2").Return(createTestCharacter("char2", "Goblin", "campaign1", 7, 15), nil)
+	mockCombatStore.On("Create", mock.Anything, mock.Anything).Return(nil)
+
+	svc := service.NewCombatServiceWithRoller(
+		mockCombatStore,
+		mockCharacterStore,
+		mockCampaignStore,
+		mockGameStateStore,
+		diceSvc,
+		roller,
+	)
+
+	combat, err := svc.StartCombat(context.Background(), &service.StartCombatRequest{
+		CampaignID:     "campaign1",
+		ParticipantIDs: []string{"char1", "char2"},
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, combat)
+
+	// Verify GameState was updated
+	updatedGameState, err := mockGameStateStore.Get(context.Background(), "campaign1")
+	assert.NoError(t, err)
+	assert.Equal(t, combat.ID, updatedGameState.ActiveCombatID, "GameState.ActiveCombatID should be set to the new combat ID")
+}
+
+// TestCombatService_StartCombat_NoGameState tests that StartCombat works when GameState doesn't exist
+func TestCombatService_StartCombat_NoGameState(t *testing.T) {
+	mockCombatStore := NewMockCombatStore()
+	mockCampaignStore := new(MockCampaignStoreForCombat)
+	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
+	mockDiceStore := new(MockCharacterStoreForDice)
+	mockRandom := &MockRandomSourceForCombat{values: []int{9}}
+	roller := dice.NewRollerWithSource(mockRandom)
+	diceSvc := service.NewDiceServiceWithRoller(mockDiceStore, roller)
+
+	// Setup mocks - GameState not found (store is empty)
+	mockCampaignStore.On("Get", mock.Anything, "campaign1").Return(&models.Campaign{ID: "campaign1"}, nil)
+	mockCombatStore.On("GetActive", mock.Anything, "campaign1").Return(nil, errors.New("not found"))
+	mockCharacterStore.On("Get", mock.Anything, "char1").Return(createTestCharacter("char1", "Fighter", "campaign1", 45, 16), nil)
+	mockCombatStore.On("Create", mock.Anything, mock.Anything).Return(nil)
+
+	svc := service.NewCombatServiceWithRoller(
+		mockCombatStore,
+		mockCharacterStore,
+		mockCampaignStore,
+		mockGameStateStore,
+		diceSvc,
+		roller,
+	)
+
+	combat, err := svc.StartCombat(context.Background(), &service.StartCombatRequest{
+		CampaignID:     "campaign1",
+		ParticipantIDs: []string{"char1"},
+	})
+
+	// Should succeed even without GameState
+	assert.NoError(t, err)
+	assert.NotNil(t, combat)
+}
+
+// TestCombatService_EndCombat_ClearsGameState tests that EndCombat clears GameState.ActiveCombatID
+func TestCombatService_EndCombat_ClearsGameState(t *testing.T) {
+	mockCombatStore := NewMockCombatStore()
+	mockCampaignStore := new(MockCampaignStoreForCombat)
+	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
+	mockDiceStore := new(MockCharacterStoreForDice)
+	roller := dice.NewRoller()
+	diceSvc := service.NewDiceServiceWithRoller(mockDiceStore, roller)
+
+	// Create active combat
+	combat := models.NewCombat("campaign1", []string{"char1"})
+	combat.ID = "combat1"
+
+	// Setup GameState with active combat
+	gameState := models.NewGameState("campaign1")
+	gameState.ActiveCombatID = "combat1"
+	mockGameStateStore.Create(context.Background(), gameState)
+
+	mockCombatStore.On("Get", mock.Anything, "combat1").Return(combat, nil)
+	mockCombatStore.On("Update", mock.Anything, mock.Anything).Return(nil)
+
+	svc := service.NewCombatServiceWithRoller(
+		mockCombatStore,
+		mockCharacterStore,
+		mockCampaignStore,
+		mockGameStateStore,
+		diceSvc,
+		roller,
+	)
+
+	updatedCombat, err := svc.EndCombat(context.Background(), "combat1")
+
+	assert.NoError(t, err)
+	assert.NotNil(t, updatedCombat)
+	assert.Equal(t, models.CombatStatusFinished, updatedCombat.Status)
+
+	// Verify GameState was updated
+	updatedGameState, err := mockGameStateStore.Get(context.Background(), "campaign1")
+	assert.NoError(t, err)
+	assert.Equal(t, "", updatedGameState.ActiveCombatID, "GameState.ActiveCombatID should be cleared")
+}
+
+// TestCombatService_EndCombatWithSummary_ClearsGameState tests that EndCombatWithSummary clears GameState.ActiveCombatID
+func TestCombatService_EndCombatWithSummary_ClearsGameState(t *testing.T) {
+	mockCombatStore := NewMockCombatStore()
+	mockCampaignStore := new(MockCampaignStoreForCombat)
+	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
+	mockDiceStore := new(MockCharacterStoreForDice)
+	roller := dice.NewRoller()
+	diceSvc := service.NewDiceServiceWithRoller(mockDiceStore, roller)
+
+	// Create active combat
+	combat := models.NewCombat("campaign1", []string{"char1"})
+	combat.ID = "combat1"
+
+	// Setup GameState with active combat
+	gameState := models.NewGameState("campaign1")
+	gameState.ActiveCombatID = "combat1"
+	mockGameStateStore.Create(context.Background(), gameState)
+
+	char1 := createTestCharacter("char1", "Fighter", "campaign1", 45, 16)
+
+	mockCombatStore.On("Get", mock.Anything, "combat1").Return(combat, nil)
+	mockCharacterStore.On("Get", mock.Anything, "char1").Return(char1, nil)
+	mockCombatStore.On("Update", mock.Anything, mock.Anything).Return(nil)
+
+	svc := service.NewCombatServiceWithRoller(
+		mockCombatStore,
+		mockCharacterStore,
+		mockCampaignStore,
+		mockGameStateStore,
+		diceSvc,
+		roller,
+	)
+
+	resp, err := svc.EndCombatWithSummary(context.Background(), "combat1")
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Equal(t, models.CombatStatusFinished, resp.Combat.Status)
+
+	// Verify GameState was updated
+	updatedGameState, err := mockGameStateStore.Get(context.Background(), "campaign1")
+	assert.NoError(t, err)
+	assert.Equal(t, "", updatedGameState.ActiveCombatID, "GameState.ActiveCombatID should be cleared")
+}
+
+// TestCombatService_EndCombat_NoGameState tests that EndCombat works when GameState doesn't exist
+func TestCombatService_EndCombat_NoGameState(t *testing.T) {
+	mockCombatStore := NewMockCombatStore()
+	mockCampaignStore := new(MockCampaignStoreForCombat)
+	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockGameStateStore := NewMockGameStateStore()
+	mockDiceStore := new(MockCharacterStoreForDice)
+	roller := dice.NewRoller()
+	diceSvc := service.NewDiceServiceWithRoller(mockDiceStore, roller)
+
+	combat := models.NewCombat("campaign1", []string{"char1"})
+	combat.ID = "combat1"
+
+	mockCombatStore.On("Get", mock.Anything, "combat1").Return(combat, nil)
+	mockCombatStore.On("Update", mock.Anything, mock.Anything).Return(nil)
+
+	svc := service.NewCombatServiceWithRoller(
+		mockCombatStore,
+		mockCharacterStore,
+		mockCampaignStore,
+		mockGameStateStore,
+		diceSvc,
+		roller,
+	)
+
+	updatedCombat, err := svc.EndCombat(context.Background(), "combat1")
+
+	// Should succeed even without GameState
+	assert.NoError(t, err)
+	assert.NotNil(t, updatedCombat)
+	assert.Equal(t, models.CombatStatusFinished, updatedCombat.Status)
+}
+
+// TestCombatService_NilGameStateStore tests that combat works when GameStateStore is nil
+func TestCombatService_NilGameStateStore(t *testing.T) {
+	mockCombatStore := NewMockCombatStore()
+	mockCampaignStore := new(MockCampaignStoreForCombat)
+	mockCharacterStore := new(MockCharacterStoreForCombat)
+	mockDiceStore := new(MockCharacterStoreForDice)
+	mockRandom := &MockRandomSourceForCombat{values: []int{9}}
+	roller := dice.NewRollerWithSource(mockRandom)
+	diceSvc := service.NewDiceServiceWithRoller(mockDiceStore, roller)
+
+	// Setup mocks
+	mockCampaignStore.On("Get", mock.Anything, "campaign1").Return(&models.Campaign{ID: "campaign1"}, nil)
+	mockCombatStore.On("GetActive", mock.Anything, "campaign1").Return(nil, errors.New("not found"))
+	mockCharacterStore.On("Get", mock.Anything, "char1").Return(createTestCharacter("char1", "Fighter", "campaign1", 45, 16), nil)
+	mockCombatStore.On("Create", mock.Anything, mock.Anything).Return(nil)
+
+	// Create service with nil GameStateStore
+	svc := service.NewCombatServiceWithRoller(
+		mockCombatStore,
+		mockCharacterStore,
+		mockCampaignStore,
+		nil, // nil GameStateStore
+		diceSvc,
+		roller,
+	)
+
+	combat, err := svc.StartCombat(context.Background(), &service.StartCombatRequest{
+		CampaignID:     "campaign1",
+		ParticipantIDs: []string{"char1"},
+	})
+
+	// Should succeed without GameStateStore
+	assert.NoError(t, err)
+	assert.NotNil(t, combat)
 }
