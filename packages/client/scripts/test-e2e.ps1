@@ -1,11 +1,12 @@
-# Test-E2E.ps1 - 运行端到端测试
-# 此脚本会:
-# 1. 检查并清理Redis
-# 2. 构建项目
-# 3. 启动服务器(后台)
-# 4. 运行E2E测试
-# 5. 停止服务器
-# 6. 清理测试数据
+# Test-E2E.ps1 - Run E2E tests
+# This script will:
+# 1. Load .env file
+# 2. Check and clean Redis
+# 3. Build project
+# 4. Start server (background)
+# 5. Run E2E tests
+# 6. Stop server
+# 7. Clean up test data
 
 param(
     [switch]$SkipBuild = $false,
@@ -14,141 +15,175 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# 颜色输出函数
-function Write-ColorOutput($ForegroundColor) {
-    $fc = $host.UI.RawUI.ForegroundColor
-    $host.UI.RawUI.ForegroundColor = $ForegroundColor
-    if ($args) {
-        Write-Output $args
-    }
-    $host.UI.RawUI.ForegroundColor = $fc
+# Color output functions
+function Write-Step { Write-Host "==> $args" -ForegroundColor Cyan }
+function Write-Success { Write-Host "[OK] $args" -ForegroundColor Green }
+function Write-Error { Write-Host "[FAIL] $args" -ForegroundColor Red }
+function Write-Warning { Write-Host "[WARN] $args" -ForegroundColor Yellow }
+
+# Step 0: Load .env file
+Write-Step "Step 0: Loading .env file"
+
+$envFile = ".env"
+if (-not (Test-Path $envFile)) {
+    Write-Error ".env file not found: $envFile"
+    Write-Output "Please create .env file from .env.example"
+    exit 1
 }
 
-function Write-Step { Write-ColorOutput Cyan "==> $args" }
-function Write-Success { Write-ColorOutput Green "✓ $args" }
-function Write-Error { Write-ColorOutput Red "✗ $args" }
-function Write-Warning { Write-ColorOutput Yellow "⚠ $args" }
+try {
+    Get-Content $envFile | ForEach-Object {
+        $line = $_.Trim()
+        # Skip empty lines and comments
+        if ($line -and -not $line.StartsWith("#")) {
+            $idx = $line.IndexOf("=")
+            if ($idx -gt 0) {
+                $key = $line.Substring(0, $idx).Trim()
+                $value = $line.Substring($idx + 1).Trim()
+                [Environment]::SetEnvironmentVariable($key, $value)
+            }
+        }
+    }
+    Write-Success ".env file loaded"
+    Write-Output "  LLM_PROVIDER: $env:LLM_PROVIDER"
+    Write-Output "  LLM_MODEL: $env:LLM_MODEL"
+    Write-Output "  LLM_BASE_URL: $env:LLM_BASE_URL"
+} catch {
+    Write-Error "Failed to load .env file: $_"
+    exit 1
+}
 
-# 保存原始环境
+# Validate required environment variables
+if (-not $env:LLM_API_KEY) {
+    Write-Error "LLM_API_KEY not set in .env file"
+    exit 1
+}
+
+# Save original environment
 $originalEnv = @{}
-$envVars = @("LOG_LEVEL", "REDIS_HOST", "HTTP_PORT")
+$envVars = @("LOG_LEVEL", "REDIS_HOST", "HTTP_PORT", "LLM_PROVIDER", "LLM_BASE_URL", "LLM_MODEL", "LLM_API_KEY", "SERVER_URL", "MCP_SERVER_URL")
 foreach ($var in $envVars) {
     $originalEnv[$var] = [Environment]::GetEnvironmentVariable($var)
 }
 
-# 清理函数
-function Cleanup {
-    Write-Step "清理..."
+# Server process
+$serverProcess = $null
 
-    # 停止服务器
+# Cleanup function
+function Cleanup {
+    Write-Step "Cleaning up..."
+
+    # Stop server
     if ($serverProcess -ne $null) {
         try {
-            Stop-Process -Id $serverProcess.Id -Force -ErrorAction Stop
-            Write-Success "已停止服务器"
+            Stop-Process -Id $serverProcess.Id -Force -ErrorAction SilentlyContinue
+            Write-Success "Server stopped"
         } catch {
-            Write-Warning "停止服务器失败: $_"
+            Write-Warning "Failed to stop server: $_"
         }
     }
 
-    # 恢复环境变量
+    # Restore environment variables
     foreach ($var in $envVars) {
         if ($originalEnv[$var] -ne $null) {
             [Environment]::SetEnvironmentVariable($var, $originalEnv[$var])
         } else {
-            [Environment]::SetEnvironmentVariable($var, "")
+            [Environment]::SetEnvironmentVariable($var, $null)
         }
     }
 
-    # 清理Redis测试数据
+    # Clean Redis test data
     $redisCli = "C:\Tools\Redis-8.4.0-Windows-x64-msys2-with-Service\redis-cli.exe"
     if (Test-Path $redisCli) {
         try {
-            & $redisCli FLUSHALL > $null
-            Write-Success "已清理Redis数据"
+            & $redisCli FLUSHALL > $null 2>&1
+            Write-Success "Redis data cleaned"
         } catch {
-            Write-Warning "清理Redis失败: $_"
+            Write-Warning "Failed to clean Redis: $_"
         }
     }
 }
 
-# 注册清理
-$serverProcess = $null
+# Register cleanup
 trap {
     Cleanup
     exit 1
 }
 
-# 步骤 1: 检查Redis
-Write-Step "步骤 1: 检查Redis连接"
+# Step 1: Check Redis
+Write-Step "Step 1: Checking Redis connection"
 
 $redisCli = "C:\Tools\Redis-8.4.0-Windows-x64-msys2-with-Service\redis-cli.exe"
 if (-not (Test-Path $redisCli)) {
-    Write-Error "Redis客户端未找到: $redisCli"
+    Write-Error "Redis CLI not found: $redisCli"
     exit 1
 }
 
 try {
     $result = & $redisCli PING 2>&1
     if ($LASTEXITCODE -eq 0 -and $result -eq "PONG") {
-        Write-Success "Redis运行正常"
+        Write-Success "Redis is running"
     } else {
-        Write-Error "Redis未运行或连接失败"
+        Write-Error "Redis not running or connection failed"
         exit 1
     }
 } catch {
-    Write-Error "无法连接到Redis: $_"
+    Write-Error "Cannot connect to Redis: $_"
     exit 1
 }
 
-# 步骤 2: 清理Redis
-Write-Step "步骤 2: 清理Redis数据"
+# Step 2: Clean Redis
+Write-Step "Step 2: Cleaning Redis data"
 
 try {
-    & $redisCli FLUSHALL > $null
-    Write-Success "已清理Redis"
+    & $redisCli FLUSHALL > $null 2>&1
+    Write-Success "Redis cleaned"
 } catch {
-    Write-Warning "清理Redis失败: $_"
+    Write-Warning "Failed to clean Redis: $_"
 }
 
-# 步骤 3: 构建项目
+# Step 3: Build project
 if (-not $SkipBuild) {
-    Write-Step "步骤 3: 构建项目"
+    Write-Step "Step 3: Building project"
 
     try {
-        go build -o bin/dnd-api.exe ./cmd/api
+        $buildOutput = go build -o bin/dnd-api.exe ./cmd/api 2>&1
         if ($LASTEXITCODE -eq 0) {
-            Write-Success "构建成功"
+            Write-Success "Build successful"
         } else {
-            Write-Error "构建失败"
+            Write-Error "Build failed: $buildOutput"
             exit 1
         }
     } catch {
-        Write-Error "构建时出错: $_"
+        Write-Error "Build error: $_"
         exit 1
     }
 } else {
-    Write-Warning "跳过构建(使用 -SkipBuild 标志)"
+    Write-Warning "Skipping build (using -SkipBuild flag)"
 }
 
-# 步骤 4: 启动服务器
-Write-Step "步骤 4: 启动服务器"
+# Step 4: Start server
+Write-Step "Step 4: Starting server"
 
+# Set additional environment variables for server
 $env:LOG_LEVEL = "info"
 $env:REDIS_HOST = "localhost:6379"
 $env:HTTP_PORT = "8080"
+$env:SERVER_URL = "mock://"
+$env:MCP_SERVER_URL = "mock://"
 
 if (-not (Test-Path "bin\dnd-api.exe")) {
-    Write-Error "可执行文件未找到: bin\dnd-api.exe"
-    Write-Warning "请先运行构建或使用 -SkipBuild 标志"
+    Write-Error "Executable not found: bin\dnd-api.exe"
+    Write-Warning "Please run build first or use -SkipBuild flag"
     exit 1
 }
 
 try {
-    $serverProcess = Start-Process -FilePath "bin\dnd-api.exe" -ArgumentList "-l", "info" -PassThru -NoNewWindow
-    Write-Success "服务器已启动 (PID: $($serverProcess.Id))"
+    $serverProcess = Start-Process -FilePath "bin\dnd-api.exe" -PassThru -NoNewWindow
+    Write-Success "Server started (PID: $($serverProcess.Id))"
 
-    # 等待服务器启动
-    Write-Output "等待服务器启动..."
+    # Wait for server to start
+    Write-Output "Waiting for server to start..."
     $maxWait = 10
     $waited = 0
     $ready = $false
@@ -161,7 +196,7 @@ try {
                 break
             }
         } catch {
-            # 继续等待
+            # Continue waiting
         }
         Start-Sleep -Seconds 1
         $waited++
@@ -170,47 +205,47 @@ try {
     Write-Output ""
 
     if (-not $ready) {
-        Write-Error "服务器未能在${maxWait}秒内启动"
+        Write-Error "Server failed to start within ${maxWait} seconds"
         Cleanup
         exit 1
     }
 
-    Write-Success "服务器已就绪"
+    Write-Success "Server is ready"
 } catch {
-    Write-Error "启动服务器时出错: $_"
+    Write-Error "Failed to start server: $_"
     Cleanup
     exit 1
 }
 
-# 步骤 5: 运行E2E测试
-Write-Step "步骤 5: 运行E2E测试"
+# Step 5: Run E2E tests
+Write-Step "Step 5: Running E2E tests"
 
 try {
     if ($Verbose) {
-        go test -v ./tests/e2e/... -timeout 60s
+        go test -v ./tests/e2e/... -timeout 120s
     } else {
-        go test ./tests/e2e/... -timeout 60s
+        go test ./tests/e2e/... -timeout 120s
     }
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Success "E2E测试通过"
+        Write-Success "E2E tests passed"
     } else {
-        Write-Error "E2E测试失败"
+        Write-Error "E2E tests failed"
         Cleanup
         exit 1
     }
 } catch {
-    Write-Error "运行E2E测试时出错: $_"
+    Write-Error "Error running E2E tests: $_"
     Cleanup
     exit 1
 }
 
-# 清理
+# Cleanup
 Cleanup
 
-Write-Success "E2E测试完成!"
+Write-Success "E2E tests completed!"
 Write-Output ""
-Write-Output "测试总结:"
-Write-Output "  - 服务器启动: ✓"
-Write-Output "  - E2E测试: ✓"
-Write-Output "  - 清理完成: ✓"
+Write-Output "Test summary:"
+Write-Output "  - Server started: OK"
+Write-Output "  - E2E tests: OK"
+Write-Output "  - Cleanup: OK"

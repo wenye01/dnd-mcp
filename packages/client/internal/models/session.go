@@ -6,6 +6,8 @@ import (
 )
 
 // Session 会话模型
+// 注意: Session 与 Campaign 是同义词，Client 保留 Session 术语以保持 API 兼容性
+// Server 使用 Campaign 术语，Client 内部会进行映射
 type Session struct {
 	ID           string                 `json:"id"`
 	Name         string                 `json:"name"`
@@ -18,6 +20,15 @@ type Session struct {
 	UpdatedAt    time.Time              `json:"updated_at"`
 	DeletedAt    time.Time              `json:"deleted_at,omitempty"` // 软删除时间
 	Status       string                 `json:"status"`
+}
+
+// Campaign 是 Session 的类型别名，保持 API 兼容性
+// 推荐在代码中使用 Campaign 术语，API 层会自动映射
+type Campaign = Session
+
+// CampaignID 返回 Campaign ID（等同于 Session.ID）
+func (s *Session) CampaignID() string {
+	return s.ID
 }
 
 // NewSession 创建新会话

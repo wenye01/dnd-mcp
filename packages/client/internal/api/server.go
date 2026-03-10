@@ -9,6 +9,7 @@ import (
 
 	"github.com/dnd-mcp/client/internal/api/handler"
 	"github.com/dnd-mcp/client/internal/api/middleware"
+	"github.com/dnd-mcp/client/internal/server"
 	"github.com/dnd-mcp/client/internal/service"
 	"github.com/dnd-mcp/client/internal/store"
 	"github.com/dnd-mcp/client/internal/ws"
@@ -26,6 +27,7 @@ type Server struct {
 	chatService    service.ChatServiceInterface
 	sessionStore   store.SessionStore
 	messageStore   store.MessageStore
+	serverClient   server.ServerClient
 	hub            *ws.Hub
 	systemHandler  *handler.SystemHandler
 }
@@ -37,6 +39,7 @@ func NewServer(
 	chatService service.ChatServiceInterface,
 	sessionStore store.SessionStore,
 	messageStore store.MessageStore,
+	serverClient server.ServerClient,
 	hub *ws.Hub,
 	systemHandler *handler.SystemHandler,
 ) *Server {
@@ -56,6 +59,7 @@ func NewServer(
 		chatService:    chatService,
 		sessionStore:   sessionStore,
 		messageStore:   messageStore,
+		serverClient:   serverClient,
 		hub:            hub,
 		systemHandler:  systemHandler,
 	}
@@ -86,7 +90,7 @@ func (s *Server) setupRoutes() {
 	})
 
 	// 创建消息处理器
-	messageHandler := handler.NewMessageHandler(s.chatService, s.sessionStore, s.messageStore, s.hub)
+	messageHandler := handler.NewMessageHandler(s.chatService, s.sessionStore, s.messageStore, s.serverClient, s.hub)
 
 	// 创建 WebSocket 处理器
 	wsHandler := handler.NewWSHandler(s.hub, s.sessionStore)
@@ -94,7 +98,7 @@ func (s *Server) setupRoutes() {
 	// API 路由组
 	api := s.router.Group("/api")
 	{
-		// 会话路由
+		// 会话路由（旧路由，保持兼容）
 		sessions := api.Group("/sessions")
 		{
 			sessions.POST("", handler.CreateSession(s.sessionService))
@@ -114,6 +118,27 @@ func (s *Server) setupRoutes() {
 			sessions.POST("/:id/broadcast", wsHandler.BroadcastMessage)
 		}
 
+		// Campaign 路由（新路由，推荐使用）
+		// 内部映射到相同的 handler，保持兼容性
+		campaigns := api.Group("/campaigns")
+		{
+			campaigns.POST("", handler.CreateSession(s.sessionService))
+			campaigns.GET("", handler.ListSessions(s.sessionService))
+
+			// Campaign 详情路由
+			campaigns.GET("/:id", handler.GetSession(s.sessionService))
+			campaigns.PATCH("/:id", handler.UpdateSession(s.sessionService))
+			campaigns.DELETE("/:id", handler.DeleteSession(s.sessionService))
+
+			// 消息路由
+			campaigns.POST("/:id/chat", messageHandler.SendMessage)
+			campaigns.GET("/:id/messages", messageHandler.GetMessages)
+			campaigns.GET("/:id/messages/:messageId", messageHandler.GetMessage)
+
+			// WebSocket 广播测试路由
+			campaigns.POST("/:id/broadcast", wsHandler.BroadcastMessage)
+		}
+
 		// 系统路由（任务八：持久化触发器，任务九：健康检查和统计）
 		system := api.Group("/system")
 		{
@@ -123,8 +148,9 @@ func (s *Server) setupRoutes() {
 		}
 	}
 
-	// WebSocket 路由（任务五）
+	// WebSocket 路由（任务五）- 支持 sessions 和 campaigns 两种路径
 	s.router.GET("/ws/sessions/:id", wsHandler.HandleWebSocket)
+	s.router.GET("/ws/campaigns/:id", wsHandler.HandleWebSocket)
 
 	// 测试路由（仅用于开发测试）
 	test := s.router.Group("/test")

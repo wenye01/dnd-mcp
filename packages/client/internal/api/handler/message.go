@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/dnd-mcp/client/internal/server"
 	"github.com/dnd-mcp/client/internal/service"
 	"github.com/dnd-mcp/client/internal/store"
 	"github.com/dnd-mcp/client/internal/ws"
@@ -16,6 +17,7 @@ type MessageHandler struct {
 	chatService  service.ChatServiceInterface
 	sessionStore store.SessionStore
 	messageStore store.MessageStore
+	serverClient server.ServerClient
 	wsHub        *ws.Hub
 }
 
@@ -24,12 +26,14 @@ func NewMessageHandler(
 	chatService service.ChatServiceInterface,
 	sessionStore store.SessionStore,
 	messageStore store.MessageStore,
+	serverClient server.ServerClient,
 	wsHub *ws.Hub,
 ) *MessageHandler {
 	return &MessageHandler{
 		chatService:  chatService,
 		sessionStore: sessionStore,
 		messageStore: messageStore,
+		serverClient: serverClient,
 		wsHub:        wsHub,
 	}
 }
@@ -98,6 +102,18 @@ func (h *MessageHandler) GetMessages(c *gin.Context) {
 		}
 	}
 
+	// 优先通过 ServerClient 获取消息
+	if h.serverClient != nil {
+		ctx := c.Request.Context()
+		context, err := h.serverClient.GetContext(ctx, sessionID, limit, false)
+		if err == nil && context != nil && len(context.Messages) > 0 {
+			c.JSON(http.StatusOK, context.Messages)
+			return
+		}
+		// 如果 ServerClient 获取失败，降级到本地存储
+	}
+
+	// 降级：从本地存储获取
 	messages, err := h.messageStore.List(c.Request.Context(), sessionID, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "获取消息列表失败"}})

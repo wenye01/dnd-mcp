@@ -18,6 +18,7 @@ import (
 	"github.com/dnd-mcp/client/internal/models"
 	"github.com/dnd-mcp/client/internal/monitor"
 	"github.com/dnd-mcp/client/internal/persistence"
+	"github.com/dnd-mcp/client/internal/server"
 	"github.com/dnd-mcp/client/internal/service"
 	"github.com/dnd-mcp/client/internal/store/postgres"
 	"github.com/dnd-mcp/client/internal/store/redis"
@@ -174,16 +175,31 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// 初始化 ContextBuilder
-	contextBuilder := service.NewContextBuilder(messageStore, sessionStore)
+	// 初始化 ServerClient（用于与 Server 通信）
+	serverClient, err := server.NewClient(&cfg.Server)
+	if err != nil {
+		log.Printf("⚠ 初始化 Server 客户端失败: %v", err)
+		serverClient = nil
+	} else {
+		log.Println("✓ Server 客户端初始化成功")
+	}
+
+	// 初始化 ContextBuilder（使用 ServerClient）
+	var contextBuilder *service.ContextBuilder
+	if serverClient != nil {
+		contextBuilder = service.NewContextBuilder(serverClient, nil) // 使用默认配置
+		log.Println("✓ ContextBuilder 初始化成功（使用 Server API）")
+	} else {
+		log.Println("⚠ ContextBuilder 未初始化（Server 客户端缺失）")
+	}
 
 	// 初始化 ChatService
 	var chatService service.ChatServiceInterface
-	if llmClient != nil && mcpClient != nil {
-		chatService = service.NewChatService(messageStore, sessionStore, llmClient, mcpClient, contextBuilder)
+	if llmClient != nil && mcpClient != nil && serverClient != nil && contextBuilder != nil {
+		chatService = service.NewChatService(serverClient, llmClient, mcpClient, contextBuilder)
 		log.Println("✓ ChatService 初始化成功")
 	} else {
-		log.Println("⚠ ChatService 未完全初始化（LLM 或 MCP 客户端缺失）")
+		log.Println("⚠ ChatService 未完全初始化（LLM、MCP 或 Server 客户端缺失）")
 	}
 
 	// 持久化管理器（如果可用）
@@ -205,6 +221,7 @@ func main() {
 		chatService,
 		sessionStore,
 		messageStore,
+		serverClient,
 		nil, // hub
 		systemHandler,
 	)

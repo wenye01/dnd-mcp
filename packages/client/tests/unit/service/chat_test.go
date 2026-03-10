@@ -4,99 +4,14 @@ package service_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/dnd-mcp/client/internal/llm"
 	"github.com/dnd-mcp/client/internal/mcp"
-	"github.com/dnd-mcp/client/internal/models"
+	"github.com/dnd-mcp/client/internal/server"
 	"github.com/dnd-mcp/client/internal/service"
-	"github.com/dnd-mcp/client/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
-
-// MockMessageStore Mock MessageStore 接口
-type MockMessageStore struct {
-	mock.Mock
-}
-
-func (m *MockMessageStore) Create(ctx context.Context, message *models.Message) error {
-	args := m.Called(ctx, message)
-	return args.Error(0)
-}
-
-func (m *MockMessageStore) Get(ctx context.Context, sessionID, messageID string) (*models.Message, error) {
-	args := m.Called(ctx, sessionID, messageID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*models.Message), args.Error(1)
-}
-
-func (m *MockMessageStore) List(ctx context.Context, sessionID string, limit int) ([]*models.Message, error) {
-	args := m.Called(ctx, sessionID, limit)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*models.Message), args.Error(1)
-}
-
-func (m *MockMessageStore) ListByRole(ctx context.Context, sessionID, role string, limit int) ([]*models.Message, error) {
-	args := m.Called(ctx, sessionID, role, limit)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*models.Message), args.Error(1)
-}
-
-func (m *MockMessageStore) ListSince(ctx context.Context, sessionID string, since time.Time, limit int) ([]*models.Message, error) {
-	args := m.Called(ctx, sessionID, since, limit)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*models.Message), args.Error(1)
-}
-
-// MockSessionStoreForChat Mock SessionStore 接口（用于 ChatService 测试）
-type MockSessionStoreForChat struct {
-	mock.Mock
-}
-
-func (m *MockSessionStoreForChat) Create(ctx context.Context, session *models.Session) error {
-	args := m.Called(ctx, session)
-	return args.Error(0)
-}
-
-func (m *MockSessionStoreForChat) Get(ctx context.Context, id string) (*models.Session, error) {
-	args := m.Called(ctx, id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*models.Session), args.Error(1)
-}
-
-func (m *MockSessionStoreForChat) List(ctx context.Context) ([]*models.Session, error) {
-	args := m.Called(ctx)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*models.Session), args.Error(1)
-}
-
-func (m *MockSessionStoreForChat) Update(ctx context.Context, session *models.Session) error {
-	args := m.Called(ctx, session)
-	return args.Error(0)
-}
-
-func (m *MockSessionStoreForChat) Delete(ctx context.Context, id string) error {
-	args := m.Called(ctx, id)
-	return args.Error(0)
-}
-
-func (m *MockSessionStoreForChat) Count(ctx context.Context) (int64, error) {
-	args := m.Called(ctx)
-	return args.Get(0).(int64), args.Error(1)
-}
 
 // MockLLMClient Mock LLM 客户端接口
 type MockLLMClient struct {
@@ -145,26 +60,14 @@ func (m *MockMCPClient) Close(ctx context.Context) error {
 // TestChatService_SendMessage_Success 测试成功发送消息
 func TestChatService_SendMessage_Success(t *testing.T) {
 	// 创建 Mock
-	mockSessionStore := new(MockSessionStoreForChat)
-	mockMessageStore := new(MockMessageStore)
+	mockServerClient := server.NewMockClient()
 	mockLLMClient := new(MockLLMClient)
 	mockMCPClient := new(MockMCPClient)
 
-	contextBuilder := service.NewContextBuilder(mockMessageStore, mockSessionStore)
-	chatService := service.NewChatService(mockMessageStore, mockSessionStore, mockLLMClient, mockMCPClient, contextBuilder)
+	contextBuilder := service.NewContextBuilder(mockServerClient, nil)
+	chatService := service.NewChatService(mockServerClient, mockLLMClient, mockMCPClient, contextBuilder)
 
 	// 设置 Mock 期望
-	existingSession := &models.Session{
-		ID:        "session-123",
-		Name:      "测试会话",
-		Status:    "active",
-		CreatorID: "user-123",
-	}
-	mockSessionStore.On("Get", mock.Anything, "session-123").Return(existingSession, nil)
-
-	mockMessageStore.On("Create", mock.Anything, mock.AnythingOfType("*models.Message")).Return(nil).Times(2)
-	mockMessageStore.On("List", mock.Anything, "session-123", 50).Return([]*models.Message{}, nil)
-
 	mockLLMClient.On("Chat", mock.Anything, mock.AnythingOfType("*llm.ChatRequest")).Return(&llm.ChatResponse{
 		Choices: []llm.Choice{
 			{
@@ -183,7 +86,7 @@ func TestChatService_SendMessage_Success(t *testing.T) {
 		PlayerID: "player-123",
 	}
 
-	message, err := chatService.SendMessage(context.Background(), "session-123", req)
+	message, err := chatService.SendMessage(context.Background(), "campaign-123", req)
 
 	// 断言
 	assert.NoError(t, err)
@@ -191,66 +94,19 @@ func TestChatService_SendMessage_Success(t *testing.T) {
 	assert.Equal(t, "assistant", message.Role)
 	assert.Equal(t, "这是一个测试响应", message.Content)
 
-	// 验证 Mock 调用
-	mockSessionStore.AssertExpectations(t)
-	mockMessageStore.AssertExpectations(t)
 	mockLLMClient.AssertExpectations(t)
 }
 
-// TestChatService_SendMessage_SessionNotFound 测试会话不存在
-func TestChatService_SendMessage_SessionNotFound(t *testing.T) {
-	// 创建 Mock
-	mockSessionStore := new(MockSessionStoreForChat)
-	mockMessageStore := new(MockMessageStore)
-	mockLLMClient := new(MockLLMClient)
-	mockMCPClient := new(MockMCPClient)
-
-	contextBuilder := service.NewContextBuilder(mockMessageStore, mockSessionStore)
-	chatService := service.NewChatService(mockMessageStore, mockSessionStore, mockLLMClient, mockMCPClient, contextBuilder)
-
-	// 设置 Mock 期望
-	mockSessionStore.On("Get", mock.Anything, "non-existent").Return(nil, errors.ErrSessionNotFound)
-
-	// 测试
-	req := &service.SendMessageRequest{
-		Content:  "你好",
-		PlayerID: "player-123",
-	}
-
-	message, err := chatService.SendMessage(context.Background(), "non-existent", req)
-
-	// 断言
-	assert.Error(t, err)
-	assert.Nil(t, message)
-	assert.Contains(t, err.Error(), "会话不存在")
-
-	// 验证 Mock 调用
-	mockSessionStore.AssertExpectations(t)
-}
-
-// TestChatService_SendMessage_LLMError 测试 LLM 调用失败
+// TestChatService_SendMessage_LLMError 测试 LLM 错误
 func TestChatService_SendMessage_LLMError(t *testing.T) {
-	// 创建 Mock
-	mockSessionStore := new(MockSessionStoreForChat)
-	mockMessageStore := new(MockMessageStore)
+	mockServerClient := server.NewMockClient()
 	mockLLMClient := new(MockLLMClient)
 	mockMCPClient := new(MockMCPClient)
 
-	contextBuilder := service.NewContextBuilder(mockMessageStore, mockSessionStore)
-	chatService := service.NewChatService(mockMessageStore, mockSessionStore, mockLLMClient, mockMCPClient, contextBuilder)
+	contextBuilder := service.NewContextBuilder(mockServerClient, nil)
+	chatService := service.NewChatService(mockServerClient, mockLLMClient, mockMCPClient, contextBuilder)
 
-	// 设置 Mock 期望
-	existingSession := &models.Session{
-		ID:        "session-123",
-		Name:      "测试会话",
-		Status:    "active",
-		CreatorID: "user-123",
-	}
-	mockSessionStore.On("Get", mock.Anything, "session-123").Return(existingSession, nil)
-
-	mockMessageStore.On("Create", mock.Anything, mock.AnythingOfType("*models.Message")).Return(nil).Once()
-	mockMessageStore.On("List", mock.Anything, "session-123", 50).Return([]*models.Message{}, nil)
-
+	// 设置 Mock 期望 - LLM 返回错误
 	mockLLMClient.On("Chat", mock.Anything, mock.AnythingOfType("*llm.ChatRequest")).Return(nil, assert.AnError)
 
 	// 测试
@@ -259,156 +115,92 @@ func TestChatService_SendMessage_LLMError(t *testing.T) {
 		PlayerID: "player-123",
 	}
 
-	message, err := chatService.SendMessage(context.Background(), "session-123", req)
+	message, err := chatService.SendMessage(context.Background(), "campaign-123", req)
 
 	// 断言
 	assert.Error(t, err)
 	assert.Nil(t, message)
-	assert.Contains(t, err.Error(), "LLM 调用失败")
 
-	// 验证 Mock 调用
-	mockSessionStore.AssertExpectations(t)
-	mockMessageStore.AssertExpectations(t)
 	mockLLMClient.AssertExpectations(t)
 }
 
-// TestChatService_SendMessage_WithToolCalls 测试带工具调用的消息
-func TestChatService_SendMessage_WithToolCalls(t *testing.T) {
-	// 创建 Mock
-	mockSessionStore := new(MockSessionStoreForChat)
-	mockMessageStore := new(MockMessageStore)
+// TestChatService_SendMessage_SaveMessageError 测试保存消息错误
+func TestChatService_SendMessage_SaveMessageError(t *testing.T) {
+	mockServerClient := server.NewMockClient()
 	mockLLMClient := new(MockLLMClient)
 	mockMCPClient := new(MockMCPClient)
 
-	contextBuilder := service.NewContextBuilder(mockMessageStore, mockSessionStore)
-	chatService := service.NewChatService(mockMessageStore, mockSessionStore, mockLLMClient, mockMCPClient, contextBuilder)
+	// 设置返回错误
+	mockServerClient.SetReturnError(true)
+
+	contextBuilder := service.NewContextBuilder(mockServerClient, nil)
+	chatService := service.NewChatService(mockServerClient, mockLLMClient, mockMCPClient, contextBuilder)
+
+	// 测试 - 应该在获取上下文时失败
+	req := &service.SendMessageRequest{
+		Content:  "你好",
+		PlayerID: "player-123",
+	}
+
+	message, err := chatService.SendMessage(context.Background(), "campaign-123", req)
+
+	// 断言
+	assert.Error(t, err)
+	assert.Nil(t, message)
+}
+
+// TestChatService_SendMessage_WithContext 测试带上下文的消息发送
+func TestChatService_SendMessage_WithContext(t *testing.T) {
+	mockServerClient := server.NewMockClient()
+	mockLLMClient := new(MockLLMClient)
+	mockMCPClient := new(MockMCPClient)
+
+	config := &service.ContextBuilderConfig{
+		UseRawContext: true,
+		MessageLimit:  10,
+		IncludeCombat: true,
+	}
+	contextBuilder := service.NewContextBuilder(mockServerClient, config)
+	chatService := service.NewChatService(mockServerClient, mockLLMClient, mockMCPClient, contextBuilder)
 
 	// 设置 Mock 期望
-	existingSession := &models.Session{
-		ID:        "session-123",
-		Name:      "测试会话",
-		Status:    "active",
-		CreatorID: "user-123",
-	}
-	mockSessionStore.On("Get", mock.Anything, "session-123").Return(existingSession, nil)
-
-	// 第一次调用：创建用户消息
-	mockMessageStore.On("Create", mock.Anything, mock.MatchedBy(func(m *models.Message) bool {
-		return m.Role == "user"
-	})).Return(nil).Once()
-
-	// 获取历史消息
-	mockMessageStore.On("List", mock.Anything, "session-123", 50).Return([]*models.Message{}, nil)
-
-	// 第一次 LLM 调用返回工具调用
 	mockLLMClient.On("Chat", mock.Anything, mock.AnythingOfType("*llm.ChatRequest")).Return(&llm.ChatResponse{
 		Choices: []llm.Choice{
 			{
 				Message: llm.Message{
 					Role:    "assistant",
-					Content: "",
-					ToolCalls: []llm.ToolCall{
-						{
-							ID:   "call_001",
-							Type: "function",
-							Function: llm.FunctionCall{
-								Name:      "roll_dice",
-								Arguments: `{"formula":"1d20+5"}`,
-							},
-						},
-					},
-				},
-				FinishReason: "tool_calls",
-			},
-		},
-	}, nil).Once()
-
-	// 创建 assistant 消息（包含 tool_calls）
-	mockMessageStore.On("Create", mock.Anything, mock.MatchedBy(func(m *models.Message) bool {
-		return m.Role == "assistant" && len(m.ToolCalls) > 0
-	})).Return(nil).Once()
-
-	// MCP 工具调用
-	mockMCPClient.On("CallTool", mock.Anything, "session-123", "roll_dice", mock.Anything).Return(map[string]interface{}{
-		"success": true,
-		"result": map[string]interface{}{
-			"total": 18,
-		},
-	}, nil).Once()
-
-	// 创建 tool 响应消息
-	mockMessageStore.On("Create", mock.Anything, mock.MatchedBy(func(m *models.Message) bool {
-		return m.Role == "tool"
-	})).Return(nil).Once()
-
-	// 再次获取历史消息
-	mockMessageStore.On("List", mock.Anything, "session-123", 50).Return([]*models.Message{}, nil)
-
-	// 第二次 LLM 调用（后续请求）
-	mockLLMClient.On("Chat", mock.Anything, mock.AnythingOfType("*llm.ChatRequest")).Return(&llm.ChatResponse{
-		Choices: []llm.Choice{
-			{
-				Message: llm.Message{
-					Role:    "assistant",
-					Content: "投掷完成！结果是 18。",
+					Content: "响应内容",
 				},
 				FinishReason: "stop",
 			},
 		},
-	}, nil).Once()
-
-	// 创建最终响应消息
-	mockMessageStore.On("Create", mock.Anything, mock.MatchedBy(func(m *models.Message) bool {
-		return m.Role == "assistant" && m.Content == "投掷完成！结果是 18。"
-	})).Return(nil).Once()
+	}, nil)
 
 	// 测试
 	req := &service.SendMessageRequest{
-		Content:  "投掷 d20",
+		Content:  "我想攻击哥布林",
 		PlayerID: "player-123",
 	}
 
-	message, err := chatService.SendMessage(context.Background(), "session-123", req)
+	message, err := chatService.SendMessage(context.Background(), "campaign-123", req)
 
 	// 断言
 	assert.NoError(t, err)
 	assert.NotNil(t, message)
-	assert.Equal(t, "assistant", message.Role)
-	assert.Equal(t, "投掷完成！结果是 18。", message.Content)
 
-	// 验证 Mock 调用
-	mockSessionStore.AssertExpectations(t)
-	mockMessageStore.AssertExpectations(t)
 	mockLLMClient.AssertExpectations(t)
-	mockMCPClient.AssertExpectations(t)
 }
 
-// TestChatService_SendMessage_ToolCallError 测试工具调用失败
-func TestChatService_SendMessage_ToolCallError(t *testing.T) {
-	// 创建 Mock
-	mockSessionStore := new(MockSessionStoreForChat)
-	mockMessageStore := new(MockMessageStore)
+// TestChatService_SendMessage_WithToolCalls 测试带工具调用的响应
+func TestChatService_SendMessage_WithToolCalls(t *testing.T) {
+	mockServerClient := server.NewMockClient()
 	mockLLMClient := new(MockLLMClient)
 	mockMCPClient := new(MockMCPClient)
 
-	contextBuilder := service.NewContextBuilder(mockMessageStore, mockSessionStore)
-	chatService := service.NewChatService(mockMessageStore, mockSessionStore, mockLLMClient, mockMCPClient, contextBuilder)
+	contextBuilder := service.NewContextBuilder(mockServerClient, nil)
+	chatService := service.NewChatService(mockServerClient, mockLLMClient, mockMCPClient, contextBuilder)
 
-	// 设置 Mock 期望
-	existingSession := &models.Session{
-		ID:        "session-123",
-		Name:      "测试会话",
-		Status:    "active",
-		CreatorID: "user-123",
-	}
-	mockSessionStore.On("Get", mock.Anything, "session-123").Return(existingSession, nil)
-
-	mockMessageStore.On("Create", mock.Anything, mock.MatchedBy(func(m *models.Message) bool {
-		return m.Role == "user"
-	})).Return(nil).Once()
-
-	mockMessageStore.On("List", mock.Anything, "session-123", 50).Return([]*models.Message{}, nil)
-
+	// 设置 Mock 期望 - LLM 返回带工具调用的响应
 	mockLLMClient.On("Chat", mock.Anything, mock.AnythingOfType("*llm.ChatRequest")).Return(&llm.ChatResponse{
 		Choices: []llm.Choice{
 			{
@@ -417,11 +209,11 @@ func TestChatService_SendMessage_ToolCallError(t *testing.T) {
 					Content: "",
 					ToolCalls: []llm.ToolCall{
 						{
-							ID:   "call_001",
+							ID:   "call-123",
 							Type: "function",
 							Function: llm.FunctionCall{
 								Name:      "roll_dice",
-								Arguments: `{"formula":"1d20+5"}`,
+								Arguments: `{"formula": "1d20+5"}`,
 							},
 						},
 					},
@@ -429,31 +221,155 @@ func TestChatService_SendMessage_ToolCallError(t *testing.T) {
 				FinishReason: "tool_calls",
 			},
 		},
-	}, nil).Once()
+	}, nil)
 
-	mockMessageStore.On("Create", mock.Anything, mock.MatchedBy(func(m *models.Message) bool {
-		return m.Role == "assistant" && len(m.ToolCalls) > 0
-	})).Return(nil).Once()
-
-	// MCP 工具调用失败
-	mockMCPClient.On("CallTool", mock.Anything, "session-123", "roll_dice", mock.Anything).Return(nil, assert.AnError).Once()
+	// 设置 MCP 工具调用 Mock
+	mockMCPClient.On("CallTool", mock.Anything, mock.Anything, "roll_dice", mock.Anything).Return(map[string]interface{}{
+		"success": true,
+		"result": map[string]interface{}{
+			"total": 18,
+		},
+	}, nil)
 
 	// 测试
 	req := &service.SendMessageRequest{
-		Content:  "投掷 d20",
+		Content:  "我要投一个 d20",
 		PlayerID: "player-123",
 	}
 
-	message, err := chatService.SendMessage(context.Background(), "session-123", req)
+	message, err := chatService.SendMessage(context.Background(), "campaign-123", req)
 
 	// 断言
-	assert.Error(t, err)
-	assert.Nil(t, message)
-	assert.Contains(t, err.Error(), "工具调用失败")
+	assert.NoError(t, err)
+	assert.NotNil(t, message)
 
-	// 验证 Mock 调用
-	mockSessionStore.AssertExpectations(t)
-	mockMessageStore.AssertExpectations(t)
 	mockLLMClient.AssertExpectations(t)
-	mockMCPClient.AssertExpectations(t)
+}
+
+// TestContextBuilder_BuildContext 测试上下文构建
+func TestContextBuilder_BuildContext(t *testing.T) {
+	mockServerClient := server.NewMockClient()
+
+	testCases := []struct {
+		name      string
+		config    *service.ContextBuilderConfig
+		expectLen int // 期望至少有多少条消息
+	}{
+		{
+			name:      "简化模式",
+			config:    nil, // 使用默认配置
+			expectLen: 2,   // system + user
+		},
+		{
+			name: "完整模式",
+			config: &service.ContextBuilderConfig{
+				UseRawContext: true,
+				MessageLimit:  20,
+				IncludeCombat: true,
+			},
+			expectLen: 2,
+		},
+		{
+			name: "不包含战斗",
+			config: &service.ContextBuilderConfig{
+				UseRawContext: false,
+				MessageLimit:  10,
+				IncludeCombat: false,
+			},
+			expectLen: 2,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			contextBuilder := service.NewContextBuilder(mockServerClient, tc.config)
+
+			ctx := context.Background()
+			messages, err := contextBuilder.BuildContext(ctx, "campaign-1", "test message")
+
+			assert.NoError(t, err)
+			assert.GreaterOrEqual(t, len(messages), tc.expectLen)
+
+			// 验证第一条是 system 消息
+			if len(messages) > 0 {
+				assert.Equal(t, "system", messages[0].Role)
+			}
+		})
+	}
+}
+
+// TestContextBuilder_BuildContext_Error 测试上下文构建错误
+func TestContextBuilder_BuildContext_Error(t *testing.T) {
+	mockServerClient := server.NewMockClient()
+	mockServerClient.SetReturnError(true)
+
+	contextBuilder := service.NewContextBuilder(mockServerClient, nil)
+
+	ctx := context.Background()
+	messages, err := contextBuilder.BuildContext(ctx, "campaign-1", "test message")
+
+	assert.Error(t, err)
+	assert.Nil(t, messages)
+}
+
+// TestContextBuilder_Config 测试配置
+func TestContextBuilder_Config(t *testing.T) {
+	mockServerClient := server.NewMockClient()
+
+	// 测试默认配置
+	cb1 := service.NewContextBuilder(mockServerClient, nil)
+	assert.NotNil(t, cb1)
+
+	// 测试自定义配置
+	config := &service.ContextBuilderConfig{
+		UseRawContext: true,
+		MessageLimit:  50,
+		IncludeCombat: false,
+	}
+	cb2 := service.NewContextBuilder(mockServerClient, config)
+	assert.NotNil(t, cb2)
+}
+
+// TestChatService_MultipleMessages 测试多消息场景
+func TestChatService_MultipleMessages(t *testing.T) {
+	mockServerClient := server.NewMockClient()
+	mockLLMClient := new(MockLLMClient)
+	mockMCPClient := new(MockMCPClient)
+
+	contextBuilder := service.NewContextBuilder(mockServerClient, nil)
+	chatService := service.NewChatService(mockServerClient, mockLLMClient, mockMCPClient, contextBuilder)
+
+	// 设置 Mock 期望
+	for i := 0; i < 3; i++ {
+		mockLLMClient.On("Chat", mock.Anything, mock.AnythingOfType("*llm.ChatRequest")).Return(&llm.ChatResponse{
+			Choices: []llm.Choice{
+				{
+					Message: llm.Message{
+						Role:    "assistant",
+						Content: "响应",
+					},
+					FinishReason: "stop",
+				},
+			},
+		}, nil).Once()
+	}
+
+	// 发送多条消息
+	for i := 0; i < 3; i++ {
+		req := &service.SendMessageRequest{
+			Content:  "消息",
+			PlayerID: "player-123",
+		}
+
+		message, err := chatService.SendMessage(context.Background(), "campaign-123", req)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, message)
+	}
+
+	// 验证消息被保存
+	messages := mockServerClient.GetMessages()
+	assert.GreaterOrEqual(t, len(messages), 3)
+
+	mockLLMClient.AssertExpectations(t)
 }

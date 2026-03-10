@@ -19,6 +19,7 @@ type Config struct {
 	HTTP     HTTPConfig     `mapstructure:"http"`
 	LLM      LLMConfig      `mapstructure:"llm"`
 	MCP      MCPConfig      `mapstructure:"mcp"`
+	Server   ServerConfig   `mapstructure:"server"`
 }
 
 // RedisConfig Redis 配置
@@ -76,6 +77,12 @@ type MCPConfig struct {
 	Timeout   int    `mapstructure:"timeout" env:"MCP_TIMEOUT" default:"30"`            // seconds
 }
 
+// ServerConfig Server API 配置
+type ServerConfig struct {
+	ServerURL string `mapstructure:"server_url" env:"SERVER_URL" default:"mock://"` // mock:// or http://...
+	Timeout   int    `mapstructure:"timeout" env:"SERVER_TIMEOUT" default:"30"`     // seconds
+}
+
 // Load 从环境变量和.env文件加载配置
 // 优先级: 环境变量 > .env文件 > 默认值
 func Load() (*Config, error) {
@@ -125,6 +132,10 @@ func Load() (*Config, error) {
 		MCP: MCPConfig{
 			ServerURL: getEnv("MCP_SERVER_URL", "mock://"),
 			Timeout:   getEnvInt("MCP_TIMEOUT", 30),
+		},
+		Server: ServerConfig{
+			ServerURL: getEnv("SERVER_URL", "mock://"),
+			Timeout:   getEnvInt("SERVER_TIMEOUT", 30),
 		},
 	}
 
@@ -226,6 +237,15 @@ func (c *Config) Validate() error {
 
 	if c.MCP.Timeout <= 0 {
 		return fmt.Errorf("MCP timeout 必须大于 0")
+	}
+
+	// 验证 Server 配置
+	if c.Server.ServerURL == "" {
+		return fmt.Errorf("Server URL 不能为空")
+	}
+
+	if c.Server.Timeout <= 0 {
+		return fmt.Errorf("Server timeout 必须大于 0")
 	}
 
 	return nil
